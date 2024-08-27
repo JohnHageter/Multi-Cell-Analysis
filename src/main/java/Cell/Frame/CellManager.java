@@ -1,9 +1,10 @@
 package Cell.Frame;
 
+import Cell.Processing.CalciumProcessor;
+import Cell.Processing.MotionCorrection;
 import Cell.Utils.CellData;
-import ij.IJ;
-import ij.ImageJ;
-import ij.WindowManager;
+import ij.*;
+import ij.gui.WaitForUserDialog;
 import ij.plugin.frame.PlugInFrame;
 
 import javax.swing.*;
@@ -52,7 +53,7 @@ public class CellManager extends PlugInFrame implements ActionListener, ItemList
         addButton("Apply group(s)", 2,1,1,1);
         addButton("Select multiple",2,2,1,1);
         addButton("Analyze",        2,3,1,1);
-        addButton("Area analysis",  2,4,1,1);
+        addButton("Convert stack to DF/F",  2,4,1,1);
         addButton("Load",           2,5,1,1);
         addButton("Save",           2,6,1,1);
         addButton("More...",        2,8,1,1);
@@ -98,23 +99,11 @@ public class CellManager extends PlugInFrame implements ActionListener, ItemList
         }
         allowRecording = true;
 
-
-//        addButton("Register",       2,0,1,1);
-//        addButton("Apply group(s)", 2,1,1,1);
-//        addButton("Select multiple",2,2,1,1);
-//        addButton("Analyze",        2,3,1,1);
-//        addButton("Area analysis",  2,4,1,1);
-//        addButton("Load",           2,5,1,1);
-//        addButton("Save",           2,6,1,1);
-//        addButton("More...",        2,8,1,1);
-//
-//        addButton("Cells", 0, nButtons, 1,1); nButtons--;
-//        addButton("Groups", 1, nButtons, 1,1); nButtons--;
-
-
         switch (label) {
             case "Register":
-                IJ.log("Register");
+                //IJ.log("Register");
+                MotionCorrection mc = new MotionCorrection();
+                mc.normXCorr(IJ.getImage());
                 break;
             case "Apply group(s)":
                 IJ.log("Apply group(s)");
@@ -125,8 +114,10 @@ public class CellManager extends PlugInFrame implements ActionListener, ItemList
             case "Analyze":
                 IJ.log("Analyze");
                 break;
-            case "Area analysis":
-                IJ.log("Area analysis");
+            case "Convert stack to DF/F":
+                //IJ.log("stack conversion");
+                CalciumProcessor cp = new CalciumProcessor();
+                cp.convertToDF(IJ.getImage(), 20, 80);
                 break;
             case "Load":
                 IJ.log("Load");
