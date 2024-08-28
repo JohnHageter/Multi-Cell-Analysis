@@ -1,6 +1,8 @@
 package Cell;
 
 import Cell.Frame.CellManager;
+import Cell.UI.WaitingUI;
+import ij.IJ;
 import ij.ImageJ;
 import ij.plugin.PlugIn;
 
@@ -14,5 +16,6 @@ public class Main implements PlugIn {
     @Override
     public void run(String arg) {
         new CellManager();
+
     }
 }

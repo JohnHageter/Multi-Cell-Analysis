@@ -1,5 +1,6 @@
 package Cell.Processing;
 
+import Cell.UI.WaitingUI;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -13,6 +14,7 @@ import java.awt.*;
 public class MotionCorrection {
     ImageProcessor reference, target;
     ImageStack stack;
+    ImageStack registered;
     Rectangle rect;
     Roi template;
 
@@ -25,18 +27,18 @@ public class MotionCorrection {
 
     FloatProcessor result;
 
-    public MotionCorrection(){}
+    public MotionCorrection(Roi template){
+        this.template = template;
+    }
 
     public void normXCorr(ImagePlus imp) {
-
         stack = imp.getStack();
         int slices = stack.getSize();
         width = imp.getWidth();
         height = imp.getHeight();
-
-
         refSlice = imp.getCurrentSlice();
-        template = imp.getRoi();
+        registered = new ImageStack(width, height);
+
 
         if (template != null && template.isArea()) {
             rect = template.getBounds();
@@ -45,24 +47,28 @@ public class MotionCorrection {
         }
 
         reference = imp.getProcessor().crop();
+        IJ.showProgress(0, slices);
 
-        for (int i = 1; i <= slices; i++) {
-            alignSlices(i);
-        }
+        new Thread(() -> {
+            for (int i = 1; i <= stack.getSize(); i++) {
+                alignSlices(i);
+                IJ.showProgress(i, stack.getSize());
+            }
 
-        imp.updateAndDraw();
-        ImagePlus ret = new ImagePlus(imp.getTitle() + "_ALIGNED", target);
-
-        ret.show();
+            ImagePlus ret = new ImagePlus(imp.getTitle() + "_REGISTERED", registered);
+            ret.show();
+            IJ.showProgress(1.0);
+        }).start();
     }
 
     private void alignSlices(int slice) {
-        int[] dxdy = new int[2];
+        int[] dxdy;
         boolean edge = false;
         target = stack.getProcessor(slice);
         target.resetRoi();
 
         result = TemplateMatching.doMatch(target.crop(), reference, edge);
+        assert result != null;
         dxdy = findMax(result, 0);
 
 
@@ -91,6 +97,7 @@ public class MotionCorrection {
         target.resetRoi();
         target.translate(disX, disY);
 
+        registered.addSlice(target);
     }
 
     public static int[] findMax(ImageProcessor ip, int sW) {

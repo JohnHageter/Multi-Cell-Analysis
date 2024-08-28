@@ -1,5 +1,6 @@
 #manual
 target/*
+resources.zip
 
 # Compiled class file
 *.class
