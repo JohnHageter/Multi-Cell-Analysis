@@ -10,18 +10,27 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 
 import ij.IJ;
+import ij.gui.GenericDialog;
+import ij.gui.Roi;
+import ij.plugin.frame.RoiManager;
 
 public class CellManager extends JFrame implements ActionListener, ItemListener, MouseListener, MouseWheelListener, ListSelectionListener, Iterable<CellData> {
     private static CellManager instance;
-    private JList<CellData> cellList;
+    private JList<String> cellList;
+    private DefaultListModel<String> listModel;
     private int nButtons = 0;
     private GridBagLayout layout = new GridBagLayout();
     private static JPanel panel = new JPanel();
+    private JPopupMenu pm;
     private static GridBagConstraints gbc = new GridBagConstraints();
     private boolean allowRecording;
+
+    public ArrayList<CellData> cells = new ArrayList<>();
 
     public CellManager() {
         super("Cell Manager");
@@ -32,6 +41,8 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
         instance = this;
         cellList = new JList<>();
+        listModel = new DefaultListModel<>();
+        cellList.setModel(listModel);
         showCellManager();
     }
 
@@ -42,14 +53,15 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
         panel.setLayout(layout);
 
-        addButton("Register", 2, 0, 1, 1);
-        addButton("Apply group(s)", 2, 1, 1, 1);
-        addButton("Select multiple", 2, 2, 1, 1);
-        addButton("Analyze", 2, 3, 1, 1);
-        addButton("Convert stack to DF/F", 2, 4, 1, 1);
-        addButton("Load", 2, 5, 1, 1);
-        addButton("Save", 2, 6, 1, 1);
-        addButton("More...", 2, 8, 1, 1);
+        addButton("Register",               2, 0, 1, 1);
+        addButton("Apply group(s)",         2, 1, 1, 1);
+        addButton("Select multiple",        2, 2, 1, 1);
+        addButton("Analyze",                2, 3, 1, 1);
+        addButton("Convert stack to DF/F",  2, 4, 1, 1);
+        addButton("Load",                   2, 5, 1, 1);
+        addButton("Save",                   2, 6, 1, 1);
+        addButton("More...",                2, 8, 1, 1);
+        addMoreMenu();
 
         addButton("Cells", 0, nButtons, 1, 1);
         nButtons--;
@@ -61,7 +73,14 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         gbc.gridwidth = 2;
         gbc.gridheight = nButtons;
 
+        listModel = new DefaultListModel<>();
+        cellList.setModel(listModel);
+        cellList.addListSelectionListener(this);
+        cellList.addKeyListener(IJ.getInstance());
+        cellList.addMouseListener(this);
+        cellList.addMouseWheelListener(this);
         JScrollPane roiPane = new JScrollPane(cellList, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
         layout.setConstraints(roiPane, gbc);
         panel.add(roiPane, gbc);
 
@@ -82,6 +101,18 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         b.addMouseListener(this);
         panel.add(b, gbc);
         nButtons++;
+    }
+
+    void addMoreMenu() {
+        pm = new JPopupMenu();
+        addMenuItem("Import from Roi Manager");
+        addMenuItem("Set standard name");
+    }
+
+    void addMenuItem(String s) {
+        JMenuItem mi = new JMenuItem(s);
+        mi.addActionListener(this);
+        pm.add(mi);
     }
 
     @Override
@@ -115,24 +146,81 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 break;
             case "Load":
                 logAction("Load");
+                importFromROIManager();
                 break;
             case "Save":
                 logAction("Save");
                 break;
             case "More...":
-                logAction("More...");
+                JButton source = (JButton) e.getSource();
+                pm.show(source, source.getWidth()/2, source.getHeight()/2);
                 break;
             case "Groups":
                 logAction("Switch to group tab");
                 break;
             case "Cells":
-                logAction("Switch to Cell tab");
+                logAction("Switched to cell tab");
+                break;
+            case "Import from Roi Manager":
+                importFromROIManager();
+                break;
+            case "Set standard name":
+                nameCells();
                 break;
             default:
                 throw new IllegalStateException("Unexpected value: " + label);
         }
     }
 
+    private void nameCells() {
+        GenericDialog gd = new GenericDialog("Rename Cells");
+        gd.addMessage("Enter prefix for naming convention");
+        gd.addStringField("Prefix", "");
+        gd.showDialog();
+
+        String prefix = gd.getNextString();
+
+        for (int i = 0; i < listModel.size(); i++) {
+            renameCell(i, prefix + "_" + i);
+        }
+
+    }
+
+    private void renameCell(int index, String newName) {
+        if(index >=0 && index < listModel.getSize()) {
+            listModel.set(index, newName);
+            cells.get(index).setName(newName);
+        } else {
+            IJ.log("Index out of bounds for renaming");
+        }
+    }
+
+    private void importFromROIManager() {
+        RoiManager rm;
+        if (RoiManager.getInstance() == null) {
+            rm = new RoiManager(true);
+        } else {
+            rm = RoiManager.getInstance();
+        }
+
+        ArrayList<Roi> rois = new ArrayList<>(Arrays.asList(rm.getRoisAsArray()));
+
+        if (rois.isEmpty()) {
+            popupError("Roi Manager is empty.");
+            return;
+        }
+
+        for (Roi roi : rois) {
+            CellData cd = new CellData(roi);
+            cells.add(cd);
+            listModel.addElement(cd.getName());
+        }
+
+    }
+
+    private void popupError(String s) {
+        new WaitingUI("Error", s).showDialog();
+    }
 
     private void convertStackToDF() {
         new SwingWorker<Void, Void>() {
@@ -151,7 +239,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     }
 
     private void logAction(String message) {
-        System.out.println(message); // Replace with your logging method
+        IJ.log(message);
     }
 
     @Override

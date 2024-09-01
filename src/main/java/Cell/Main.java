@@ -1,8 +1,6 @@
 package Cell;
 
 import Cell.Frame.CellManager;
-import Cell.UI.WaitingUI;
-import ij.IJ;
 import ij.ImageJ;
 import ij.plugin.PlugIn;
 
