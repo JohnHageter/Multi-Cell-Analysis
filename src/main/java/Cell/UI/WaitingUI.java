@@ -6,15 +6,15 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 
-public class WaitingUI extends JDialog implements ActionListener, KeyListener {
+public class WaitingUI extends JDialog implements ActionListener {
     private JButton button;
+    private Runnable task; // Task to run after OK is clicked
 
     public WaitingUI(String title, String text) {
-        super(IJ.getInstance(), title, true); // Set modal to true
+        super(IJ.getInstance(), title, false);
         IJ.protectStatusBar(false);
+
         setSize(400, 200);
         setLocationRelativeTo(null);
         setLayout(new GridBagLayout());
@@ -32,45 +32,30 @@ public class WaitingUI extends JDialog implements ActionListener, KeyListener {
 
         button = new JButton("OK");
         button.addActionListener(this);
-        button.addKeyListener(this);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
         buttonPanel.add(button);
         gbc.gridx = 0;
-        gbc.gridy = 1;
+        gbc.gridy = 2;
         gbc.gridwidth = 2;
         add(buttonPanel, gbc);
 
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         pack();
+        setVisible(true); // Show dialog
     }
 
-    public void showDialog() {
-        setVisible(true); // Show the dialog
-    }
-
-    public void close() {
-        setVisible(false);
-        dispose(); // Clean up resources
+    public void setTask(Runnable task) {
+        this.task = task; // Set the task to be executed after OK is clicked
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
         if (e.getActionCommand().equals("OK")) {
-            close();
+            if (task != null) {
+                new Thread(task).start(); // Start the task in a new thread
+            }
+            dispose(); // Close the dialog
         }
     }
-
-    @Override
-    public void keyTyped(KeyEvent e) {}
-
-    @Override
-    public void keyPressed(KeyEvent e) {
-        if (e.getKeyChar() == KeyEvent.VK_ESCAPE || e.getKeyChar() == KeyEvent.VK_ENTER) {
-            close();
-        }
-    }
-
-    @Override
-    public void keyReleased(KeyEvent e) {}
 }
