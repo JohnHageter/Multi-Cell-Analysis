@@ -1,0 +1,15 @@
+<component name="libraryTable">
+  <library name="lib">
+    <CLASSES>
+      <root url="file://$PROJECT_DIR$/../../Fiji.app/java/win64/zulu8.60.0.21-ca-fx-jdk8.0.322-win_x64/jre/lib" />
+      <root url="file://$PROJECT_DIR$/../../Fiji.app/jars" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="file://$PROJECT_DIR$/../../Fiji.app/jars" />
+    </SOURCES>
+    <jarDirectory url="file://$PROJECT_DIR$/../../Fiji.app/jars" recursive="false" />
+    <jarDirectory url="file://$PROJECT_DIR$/../../Fiji.app/java/win64/zulu8.60.0.21-ca-fx-jdk8.0.322-win_x64/jre/lib" recursive="false" />
+    <jarDirectory url="file://$PROJECT_DIR$/../../Fiji.app/jars" recursive="false" type="SOURCES" />
+  </library>
+</component>
