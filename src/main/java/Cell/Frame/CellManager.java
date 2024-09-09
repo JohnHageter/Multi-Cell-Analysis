@@ -1,5 +1,6 @@
 package Cell.Frame;
 
+import Cell.Analysis.DataGrabber;
 import Cell.Annotation.SelectionGrouping;
 import Cell.Processing.CalciumProcessor;
 import Cell.Processing.MotionCorrection;
@@ -39,6 +40,8 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     private boolean showingGroups = false;
 
     public ArrayList<CellData> cells = new ArrayList<>();
+    private Overlay allCellOverlay;
+    private Overlay allGroupOverlay;
 
     public CellManager() {
         super("Cell Manager");
@@ -54,7 +57,23 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         showCellManager();
     }
 
-    private void showCellManager() {
+    public static CellManager getInstance() {
+        if (instance == null){
+            instance = new CellManager();
+        }
+        return instance;
+    }
+
+    public static void showCellManager() {
+        CellManager manager = getInstance();
+        manager.initializeUI();
+        if (!manager.isVisible()) {
+            manager.setVisible(true);
+        }
+        manager.toFront();
+    }
+
+    private void initializeUI() {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         addMouseListener(this);
         addMouseWheelListener(this);
@@ -73,7 +92,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         addButton("Analyze",                2, 3, 1, 1);
         addButton("Convert stack to DF/F",  2, 4, 1, 1);
         addButton("Load from ROI Manager",  2, 5, 1, 1);
-        addButton("Save",                   2, 6, 1, 1);
+        addButton("Plot",                   2, 6, 1, 1);
         addButton("More...",                2, 8, 1, 1);
         addMoreMenu();
 
@@ -111,7 +130,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
         this.add(panel);
         this.pack();
-        this.setVisible(true);
 
         this.addComponentListener(new ComponentAdapter() {
             @Override
@@ -177,7 +195,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 logAction("Select multiple");
                 break;
             case "Analyze":
-                logAction("Analyze");
+                DataGrabber data = new DataGrabber();
                 break;
             case "Convert stack to DF/F":
                 convertStackToDF();
@@ -185,19 +203,17 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             case "Load from ROI Manager":
                 importFromROIManager();
                 break;
-            case "Save":
-                //logAction("Save");
+            case "Plot":
+                Plot.main(null);
                 break;
             case "More...":
                 JButton source = (JButton) e.getSource();
                 pm.show(source, source.getWidth()/2, source.getHeight()/2);
                 break;
             case "Groups":
-                //logAction("Switch to group tab");
                 showGroups();
                 break;
             case "Cells":
-                //logAction("Switched to cell tab");
                 showCells();
                 break;
             case "Set standard name":
@@ -314,8 +330,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 listModel.addElement(newCd.getName());
             }
         }
-
-
     }
 
     private void popupError(String s) {
@@ -327,6 +341,11 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     }
 
     private void convertStackToDF() {
+        if (WindowManager.getCurrentImage() == null) {
+            IJ.noImage();
+            return;
+        }
+
         int begin = -1, end = -1;
 
         GenericDialog gd = new GenericDialog("Fluorescence conversion");
@@ -335,7 +354,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         gd.showDialog();
 
         if (gd.wasOKed()) {
-            //TODO: check to make sure input works
             String input = gd.getNextString().trim();
 
             if (!input.contains("-")) {
@@ -385,18 +403,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             }.execute();
         } else {
             IJ.error("Baseline needed for conversion");
-        }
-
-
-
-
-    }
-
-    public static CellManager getInstance() {
-        if (instance == null) {
-            return new CellManager();
-        } else {
-            return instance;
         }
     }
 
@@ -519,6 +525,20 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             listModel.addElement(cell.getName());
         }
         showingGroups = false;
+
+        ImagePlus imp = WindowManager.getCurrentImage();
+        if (imp == null) return;
+
+        allCellOverlay = new Overlay();
+        for (CellData cell : cells) {
+            Roi cellRoi = cell.getCellRoi();
+            if (cellRoi != null) {
+                cellRoi.setStrokeColor(Color.RED);
+                allCellOverlay.add(cellRoi);
+            }
+        }
+        imp.setOverlay(allCellOverlay);
+        imp.updateAndDraw();
     }
 
     private void showGroups() {
@@ -530,21 +550,24 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             }
         }
         for (String group : groups) {
-            listModel.addElement("Group: " + group);
+            listModel.addElement(group);
         }
         showingGroups = true;
-    }
 
-    @Override
-    public void itemStateChanged(ItemEvent e) {
-        Object source = e.getItemSelectable();
-        if(source == showAll) {
-            if(e.getStateChange() == ItemEvent.SELECTED) {
-                showAllCells();
-            } else {
-                //showSelectedCell();
+        ImagePlus imp = WindowManager.getCurrentImage();
+        if (imp == null) return;
+
+        allGroupOverlay = new Overlay();
+        for (CellData cd : cells) {
+            Roi groupRoi = cd.getGroupRoi();
+            if (groupRoi != null) {
+                groupRoi.setStrokeColor(Color.MAGENTA);
+                groupRoi.setStrokeWidth(2.0f);
+                allGroupOverlay.add(groupRoi);
             }
         }
+        imp.setOverlay(allGroupOverlay);
+        imp.updateAndDraw();
     }
 
     private void showAllCells() {
@@ -553,8 +576,70 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             return;
         }
 
-       // if
+        allCellOverlay = new Overlay();
 
+        for (CellData cell : cells) {
+            Roi cellRoi = cell.getCellRoi();
+            if (cellRoi != null) {
+                cellRoi.setStrokeColor(Color.RED);
+                allCellOverlay.add(cellRoi);
+            }
+        }
+
+        imp.setOverlay(allCellOverlay);
+        imp.updateAndDraw();
+    }
+
+    private void removeOverlay() {
+        ImagePlus imp = WindowManager.getCurrentImage();
+        if (imp == null) {
+            return;
+        }
+
+        imp.setOverlay(null);
+        imp.updateAndDraw();
+    }
+
+    private void showAllGroups() {
+        ImagePlus imp = WindowManager.getCurrentImage();
+        if (imp == null) {
+            return;
+        }
+
+        allGroupOverlay = new Overlay();
+
+        // Loop through all cells, and if they belong to a group, display the group's ROI
+        for (CellData cell : cells) {
+            if (cell.getGroup() != null) {
+                Roi groupRoi = cell.getGroupRoi();
+                if (groupRoi != null) {
+                    groupRoi.setStrokeColor(Color.MAGENTA);
+                    allGroupOverlay.add(groupRoi);
+                }
+            }
+        }
+
+        imp.setOverlay(allGroupOverlay);
+        imp.updateAndDraw();
+    }
+
+    @Override
+    public void itemStateChanged(ItemEvent e) {
+        Object source = e.getItemSelectable();
+
+        if (source == showAll && !showingGroups) {
+            if (e.getStateChange() == ItemEvent.SELECTED) {
+                showAllCells();
+            } else {
+                removeOverlay();
+            }
+        } else if (source == showAll && showingGroups) {
+            if (e.getStateChange() == ItemEvent.SELECTED) {
+                showAllGroups();
+            } else {
+                removeOverlay();
+            }
+        }
     }
 
     @Override
@@ -642,7 +727,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         }
 
         CellData cd = cells.get(selectedIndex);
-
         ImagePlus image = IJ.getImage();
         if (image == null) {
             return;
@@ -664,4 +748,5 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             }
         }
     }
+
 }

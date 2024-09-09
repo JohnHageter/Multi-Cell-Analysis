@@ -7,13 +7,13 @@ import Cell.Frame.CellManager;
 public class Main implements PlugIn {
 
     public static void main(String[] args){
-        new CellManager();
+        new CellManager().setVisible(true);
         new ImageJ();
     }
 
     @Override
     public void run(String arg) {
-        new CellManager();
+        new CellManager().setVisible(true);
 
     }
 }
