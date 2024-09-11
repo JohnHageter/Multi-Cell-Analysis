@@ -1,6 +1,6 @@
 package Cell.Frame;
 
-import Cell.Analysis.DataGrabber;
+import Cell.Analysis.Exporter;
 import Cell.Annotation.SelectionGrouping;
 import Cell.Processing.CalciumProcessor;
 import Cell.Processing.MotionCorrection;
@@ -195,7 +195,13 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 logAction("Select multiple");
                 break;
             case "Analyze":
-                DataGrabber data = new DataGrabber();
+                if (IJ.getImage()!= null) {
+                    Exporter exporter = new Exporter(WindowManager.getCurrentImage(), cells);
+                    exporter.setParameters();
+                } else {
+                    IJ.noImage();
+                }
+
                 break;
             case "Convert stack to DF/F":
                 convertStackToDF();

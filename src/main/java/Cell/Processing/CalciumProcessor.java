@@ -41,7 +41,7 @@ public class CalciumProcessor {
             deltaFStack.addSlice(deltaFProcessor);
         }
 
-        ImagePlus ret = new ImagePlus(imp.getTitle() + "_DeltaF/F", deltaFStack);
+        ImagePlus ret = new ImagePlus(imp.getTitle() + "_DELTAF", deltaFStack);
         ret.show();
     }
 

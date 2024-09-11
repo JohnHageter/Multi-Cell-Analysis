@@ -36,24 +36,18 @@ public class TemplateMatching {
             return null;
         }
 
-        // Convert images to Mats
         Mat matSrc = convertToMat(src);
         Mat matTpl = convertToMat(tpl);
         Mat res = new Mat(new Size(srcW - tplW + 1, srcH - tplH + 1), CV_32F);
 
-        // Perform template matching
         matchTemplate(matSrc, matTpl, res, CV_TM_CCOEFF);
 
-        // Create FloatProcessor to hold the result
         FloatProcessor resultFp = new FloatProcessor(res.cols(), res.rows());
         float[] resultPixels = (float[]) resultFp.getPixels(); // Get the float pixels array
 
-        // Copy data from res (Mat) to resultPixels (float[])
-        // Assuming res is a CV_32F Mat, we can safely cast the pointer to FloatPointer
-        FloatPointer floatPointer = new FloatPointer(res.data().asByteBuffer().asFloatBuffer()); // Convert to FloatPointer
-        floatPointer.get(resultPixels); // Use FloatPointer to get the float array
+        FloatPointer floatPointer = new FloatPointer(res.data().asByteBuffer().asFloatBuffer());
+        floatPointer.get(resultPixels);
 
-        // Release resources
         matSrc.release();
         matTpl.release();
         res.release();
@@ -72,7 +66,7 @@ public class TemplateMatching {
             byte[] pixels = (byte[]) ip.getPixels();
             float[] floatPixels = new float[pixels.length];
             for (int i = 0; i < pixels.length; i++) {
-                floatPixels[i] = (float) (pixels[i] & 0xFF); // Convert to unsigned
+                floatPixels[i] = (float) (pixels[i] & 0xFF);
             }
             return new Mat(height, width, CV_32F, new FloatPointer(floatPixels));
         } else {
