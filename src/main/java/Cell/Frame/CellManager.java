@@ -25,6 +25,7 @@ import ij.plugin.frame.RoiManager;
 import Cell.UI.WaitingUI;
 
 import java.awt.Color;
+import java.util.prefs.BackingStoreException;
 
 
 public class CellManager extends JFrame implements ActionListener, ItemListener, MouseListener, MouseWheelListener, ListSelectionListener, Iterable<CellData> {
@@ -196,12 +197,15 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 break;
             case "Analyze":
                 if (IJ.getImage()!= null) {
-                    Exporter exporter = new Exporter(WindowManager.getCurrentImage(), cells);
-                    exporter.setParameters();
+                    Exporter exporter = new Exporter(cells);
+                    try {
+                        exporter.exportData();
+                    } catch (BackingStoreException ex) {
+                        throw new RuntimeException(ex);
+                    }
                 } else {
                     IJ.noImage();
                 }
-
                 break;
             case "Convert stack to DF/F":
                 convertStackToDF();
