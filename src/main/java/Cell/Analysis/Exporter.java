@@ -1,13 +1,16 @@
 package Cell.Analysis;
 
 import Cell.UI.Popup;
+import Cell.UI.WaitingUI;
 import Cell.Utils.CellData;
+import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.measure.ResultsTable;
 import ij.process.ImageProcessor;
+import ij.process.ImageStatistics;
 
 import java.util.ArrayList;
 import java.util.prefs.BackingStoreException;
@@ -20,18 +23,28 @@ public class Exporter {
     private static final String PREF_STIMULUS = "Stimulus";
     private static final String PREF_STIMULUS_NAMES = "Stimpoint";
     private static final String PREF_METHOD = "Method";
+    private static final String PREF_FILTER = "Filter";
 
-    private String stimulusNamesInput = "";
-    private String stimulusPointsInput = "";
-    private int method = 0;
     private int nIterations = 2;
+    private String stimulusPointsInput = "";
+    private String stimulusNamesInput = "";
+    private int method = 0;
+    private int filter = 0;
 
     ArrayList<ImagePlus> iterations = new ArrayList<ImagePlus>();
+    ArrayList<CellData> cells;
 
-    private ResultsTable rt_raw;
-    private ResultsTable rt_stim;
+    private boolean convertedFormat = false;
 
-    public Exporter(ArrayList<CellData> cells){}
+    private ResultsTable rt_raw = new ResultsTable();
+    private ResultsTable rt_stim = new ResultsTable();
+
+    private final String[] methods = new String[]{">3σ", "Peak Detection", "None"};
+    private final String[] filters = new String[]{"Gaussian", "None"};
+
+    public Exporter(ArrayList<CellData> cells){
+        this.cells = cells;
+    }
 
     public void exportData() throws BackingStoreException {
         setParameters();
@@ -78,7 +91,58 @@ public class Exporter {
     }
 
     public void getResultsTable(ImagePlus imp){
+        if(imp.getTitle().contains("_DELTAF")){
+            convertedFormat = true;
+        } else {
+            IJ.log("WARNING: Image series may not be in converted Delta F/F format");
+        }
 
+        IJ.showStatus("Measuring ROIs...");
+        IJ.showProgress(0, imp.getNSlices()*cells.size());
+        int progress = 0;
+
+        String name = imp.getTitle().trim();
+        int nSlices = imp.getNSlices();
+        for (CellData cell : cells){
+            IJ.showProgress(progress, imp.getNSlices()*cells.size());
+
+            rt_raw.incrementCounter();
+            rt_stim.incrementCounter();
+
+            rt_raw.addValue("Name", name);
+            rt_stim.addValue("Name", name);
+
+            rt_raw.addValue("ROI", cell.getName());
+            rt_stim.addValue("ROI", cell.getName());
+
+            rt_raw.addValue("X", cell.getCenterX());
+            rt_stim.addValue("X", cell.getCenterX());
+
+            rt_raw.addValue("Y", cell.getCenterY());
+            rt_stim.addValue("Y", cell.getCenterY());
+
+            rt_raw.addValue("Filter", filters[this.filter]);
+            rt_stim.addValue("Filter", filters[this.filter]);
+
+            rt_raw.addValue("Detection.Method", methods[this.method]);
+            rt_stim.addValue("Detection.Method", methods[this.method]);
+
+
+
+            for (int i = 1; i <= nSlices; i++){
+                imp.setSlice(i);
+                ImageProcessor ip = imp.getProcessor();
+                ip.setRoi(cell.getCellRoi());
+                ImageStatistics stats = ip.getStatistics();
+                rt_raw.addValue("Slice_" + i, stats.mean);
+
+                rt_stim.addValue("Slice_" + i, 0);
+            }
+            progress++;
+        }
+
+        rt_raw.show("Signal results");
+        rt_stim.show("Peak detection results");
     }
 
     public void setParameters() throws BackingStoreException {
@@ -87,6 +151,7 @@ public class Exporter {
         this.stimulusPointsInput = prefs.get(PREF_STIMULUS, this.stimulusPointsInput);
         this.stimulusNamesInput = prefs.get(PREF_STIMULUS_NAMES, this.stimulusNamesInput);
         this.method = prefs.getInt(PREF_METHOD, this.method);
+        this.filter = prefs.getInt(PREF_FILTER, this.filter);
 
         GenericDialog gd = getGenericDialog();
 
@@ -95,12 +160,14 @@ public class Exporter {
             this.stimulusNamesInput = gd.getNextString();
             this.stimulusPointsInput = gd.getNextString();
             this.method = gd.getNextChoiceIndex();
+            this.filter = gd.getNextChoiceIndex();
 
             prefs.clear();
             prefs.putInt(PREF_ITERATIONS, this.nIterations);
             prefs.put(PREF_STIMULUS, this.stimulusPointsInput);
             prefs.put(PREF_STIMULUS_NAMES, this.stimulusNamesInput);
             prefs.putInt(PREF_METHOD, this.method);
+            prefs.putInt(PREF_FILTER, this.filter);
         }
     }
 
@@ -137,15 +204,14 @@ public class Exporter {
     }
 
     private GenericDialog getGenericDialog() {
-        String[] method = new String[]{">3σ", "Peak Detection", "none"};
-
         GenericDialog gd = new GenericDialog("Exporter Settings");
         gd.addMessage("All parameters are optional. Leave blank if excluded");
         gd.addNumericField("Iterations:", this.nIterations);
         gd.addMessage("Input stimulus as frames points with a duration to search separated by a comma (ex. 60-63,120-123)\nThis will average relative intensity change from frame 60-63 and 120-123");
         gd.addStringField("Stimulus time(s)", this.stimulusNamesInput);
         gd.addStringField("Stimulus Names", this.stimulusPointsInput);
-        gd.addChoice("Response call method", method, method[this.method]);
+        gd.addChoice("Response call method", methods, methods[this.method]);
+        gd.addChoice("Filtering method", filters, filters[0]);
         //gd.addCheckbox("Show group plot", this.plot);
         gd.showDialog();
         return gd;
