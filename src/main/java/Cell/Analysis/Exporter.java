@@ -18,7 +18,7 @@ import java.util.prefs.Preferences;
 
 
 public class Exporter {
-    private static final String PREF_SAVE = "Save";
+    //private static final String PREF_SAVE = "Save";
     private static final String PREF_ITERATIONS = "Iterations";
     private static final String PREF_STIMULUS = "Stimulus";
     private static final String PREF_STIMULUS_NAMES = "Stimpoint";
@@ -61,7 +61,7 @@ public class Exporter {
         ImagePlus averageImp = new ImagePlus(iterations.get(0).getTitle() + "_AVG", imp);
         averageImp.show();
 
-        getResultsTable(averageImp);
+        filterSignal(averageImp);
     }
 
     public ImageProcessor averageIterations() {
@@ -90,6 +90,26 @@ public class Exporter {
         return rp;
     }
 
+    public void filterSignal(ImagePlus imp){
+        int nSlices = imp.getNSlices();
+        IJ.showStatus("Filtering signal...");
+        IJ.showProgress(0, (int) cells.size()*nSlices);
+        int cellIndex = 0;
+        for (CellData cell : cells) {
+            double[] signal = new double[nSlices];
+            for (int i = 1; i <= nSlices; i++) {
+                imp.setSlice(i);
+                ImageProcessor ip = imp.getProcessor();
+                ip.setRoi(cell.getCellRoi());
+                ImageStatistics stats = ip.getStatistics();
+                signal[i] = stats.mean;
+                IJ.showProgress(cellIndex*i,cells.size()*nSlices);
+            }
+            cell.setSignal(signal);
+            cellIndex++;
+        }
+    }
+
     public void getResultsTable(ImagePlus imp){
         if(imp.getTitle().contains("_DELTAF")){
             convertedFormat = true;
@@ -97,14 +117,14 @@ public class Exporter {
             IJ.log("WARNING: Image series may not be in converted Delta F/F format");
         }
 
-        IJ.showStatus("Measuring ROIs...");
+        IJ.showStatus("Generating results...");
         IJ.showProgress(0, imp.getNSlices()*cells.size());
         int progress = 0;
 
         String name = imp.getTitle().trim();
-        int nSlices = imp.getNSlices();
+
         for (CellData cell : cells){
-            IJ.showProgress(progress, imp.getNSlices()*cells.size());
+            IJ.showProgress(progress, cells.size());
 
             rt_raw.incrementCounter();
             rt_stim.incrementCounter();
@@ -127,17 +147,12 @@ public class Exporter {
             rt_raw.addValue("Detection.Method", methods[this.method]);
             rt_stim.addValue("Detection.Method", methods[this.method]);
 
-
-
-            for (int i = 1; i <= nSlices; i++){
-                imp.setSlice(i);
-                ImageProcessor ip = imp.getProcessor();
-                ip.setRoi(cell.getCellRoi());
-                ImageStatistics stats = ip.getStatistics();
-                rt_raw.addValue("Slice_" + i, stats.mean);
-
-                rt_stim.addValue("Slice_" + i, 0);
+            for (int i = 1; i <= imp.getNSlices(); i++){
+                rt_raw.addValue("Slice_" + i, cell.getSignal()[i]);
+                rt_stim.addValue("Slice_" + i, cell.getBinary()[i]);
             }
+
+
             progress++;
         }
 

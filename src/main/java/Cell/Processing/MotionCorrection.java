@@ -96,7 +96,7 @@ public class MotionCorrection {
         target.resetRoi();
         target.translate(disX, disY);
 
-        registered.addSlice(target);
+        registered.addSlice(target.duplicate());
     }
 
     public static int[] findMax(ImageProcessor ip, int sW) {

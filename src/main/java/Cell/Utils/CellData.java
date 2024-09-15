@@ -3,19 +3,21 @@ package Cell.Utils;
 import ij.gui.Roi;
 
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.Objects;
 
 public class CellData {
     private Roi cellRoi;
     private Roi groupRoi;
     private String name;
-    private String group = null;
+    private ArrayList<String> groups = new ArrayList<>();
     private int centerX;
     private int centerY;
     private double fnot;
-    private double[] df;
+    private double[] signal;
 
     public static CellData previousCellData;
+    private int[] spikeTrain;
 
     public CellData(Roi cell){
         this.cellRoi = cell;
@@ -40,10 +42,18 @@ public class CellData {
         this.name = s;
     }
 
-    public String getGroup(){return !Objects.equals(this.group, "") ?this.group:"";}
+    public ArrayList<String> getGroups(){
+        return groups;
+    }
 
-    public void setGroup(String group){
-        this.group = group;
+    public void addGroup(String group){
+        if (!this.groups.contains(group)) {
+            this.groups.add(group);
+        }
+    }
+
+    public void removeGroup(String group) {
+        this.groups.remove(group);
     }
 
     public void setGroupRoi(Roi groupRoi) {
@@ -61,12 +71,20 @@ public class CellData {
     public void setRoi(Roi cellRoi){
         this.cellRoi = cellRoi;
         if (cellRoi != null) {
-            cellRoi.setStrokeColor(Color.RED); // Set the cell ROI color to red
+            cellRoi.setStrokeColor(Color.RED);
         }
     }
 
     public String[] breakName(String delimiter) {
         return this.getName().split(delimiter);
+    }
+
+    public void setSignal(double[] signal) {
+        this.signal = signal;
+    }
+
+    public double[] getSignal(){
+        return this.signal;
     }
 
     public String printData() {
@@ -77,4 +95,11 @@ public class CellData {
                 "}";
     }
 
+    public void setSpikeTrain(int[] spikeTrain){
+        this.spikeTrain = spikeTrain;
+    }
+
+    public int[] getBinary() {
+        return this.spikeTrain;
+    }
 }
