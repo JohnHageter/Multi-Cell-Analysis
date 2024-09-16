@@ -18,7 +18,7 @@ public class SelectionGrouping implements DialogListener {
             int centerX = cell.getCenterX();
             int centerY = cell.getCenterY();
             if(groupingRoi.contains(centerX, centerY)) {
-                cell.setGroup(groupName);
+                cell.addGroup(groupName);
                 cell.setGroupRoi(groupingRoi);
                 roiMap.put(groupName, groupingRoi);
             }

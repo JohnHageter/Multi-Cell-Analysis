@@ -13,8 +13,12 @@ import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
+import java.util.stream.Collectors;
 
 
 public class Exporter {
@@ -24,17 +28,23 @@ public class Exporter {
     private static final String PREF_STIMULUS_NAMES = "Stimpoint";
     private static final String PREF_METHOD = "Method";
     private static final String PREF_FILTER = "Filter";
+    private static final String PREF_LAG = "Lag";
+    private static final String PREF_THRESHOLD = "Threshold";
+    private static final String PREF_INFLUENCE = "Influence";
 
-    private int nIterations = 2;
     private String stimulusPointsInput = "";
     private String stimulusNamesInput = "";
+    private int nIterations = 2;
     private int method = 0;
     private int filter = 0;
+    private int lag = 30;
+    private double threshold = 3.0;
+    private double influence = 0.25;
+    private boolean convertedFormat = false;
 
     ArrayList<ImagePlus> iterations = new ArrayList<ImagePlus>();
     ArrayList<CellData> cells;
 
-    private boolean convertedFormat = false;
 
     private ResultsTable rt_raw = new ResultsTable();
     private ResultsTable rt_stim = new ResultsTable();
@@ -108,6 +118,23 @@ public class Exporter {
             cell.setSignal(signal);
             cellIndex++;
         }
+    }
+
+    public void detectPeaks(ImagePlus imp) {
+        int nSlices = imp.getNSlices();;
+        IJ.showStatus("Detecting peaks...");
+        IJ.showProgress(0, (int) cells.size()*nSlices);
+        int cellIndex = 0;
+        for (CellData cell : cells){
+            List<Double> signal = Arrays.stream(cell.getSignal())
+                    .boxed()
+                    .collect(Collectors.toList());
+
+            SignalDetector sd = new SignalDetector();
+            HashMap<String, List> map = sd.analyzeDataForSignals(signal, lag, threshold, influence);
+            cell.setSpikeTrain(map.get("signals"));
+        }
+
     }
 
     public void getResultsTable(ImagePlus imp){

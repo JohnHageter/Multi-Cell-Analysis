@@ -1,15 +1,14 @@
 package Cell.Analysis;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 //Based on peak detection algorithm from https://stackoverflow.com/questions/22583391/peak-signal-detection-in-realtime-timeseries-data/56174275#56174275
 public class SignalDetector {
-    public HashMap<String, List<>> analyzeDataForSignals(List<Double> data, int lag, Double threshold, Double influence) {
+    public HashMap<String, List> analyzeDataForSignals(List<Double> data, int lag, Double threshold, Double influence) {
+
         SummaryStatistics stats = new SummaryStatistics();
         List<Integer> signals = new ArrayList<Integer>(Collections.nCopies(data.size(), 0));
         List<Double> filteredData = new ArrayList<Double>(data);
@@ -46,8 +45,10 @@ public class SignalDetector {
             stats.clear();
         }
 
-        HashMap<String, List<>> returnMap = new HashMap<String, List<>>();
+
+        HashMap<String, List> returnMap = new HashMap<>();
         returnMap.put("signals", signals);
+        returnMap.put("raw", data);
         returnMap.put("filteredData", filteredData);
         returnMap.put("avgFilter", avgFilter);
         returnMap.put("stdFilter", stdFilter);

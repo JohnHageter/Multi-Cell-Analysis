@@ -62,14 +62,10 @@ public class Test {
 
     public static void testSpikeDetection(){
         //List<Double> data, int lag, Double threshold, Double influence
-        SignalDetector sd = new SignalDetector();
+        List<Double> signalList = Arrays.stream(signal).boxed().collect(Collectors.toList());
+        Plot plt = new Plot(signalList);
+        plt.plotSpikeTrain();
 
-        List<Double> signalList = Arrays.stream(signal)  // Convert double[] to DoubleStream
-                .boxed()                                      // Box each double primitive to Double object
-                .collect(Collectors.toList());
-        HashMap<String, List<>> peaks = sd.analyzeDataForSignals(signalList,30, 5d, 0d);
-
-        Plot plt = new Plot();
-        plt.plotBinarySpikeTrain(peaks.get("signals"));
     }
+
 }

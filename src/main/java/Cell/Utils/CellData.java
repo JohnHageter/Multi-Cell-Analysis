@@ -3,8 +3,8 @@ package Cell.Utils;
 import ij.gui.Roi;
 
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Objects;
+import java.util.*;
+import java.util.List;
 
 public class CellData {
     private Roi cellRoi;
@@ -85,6 +85,18 @@ public class CellData {
 
     public double[] getSignal(){
         return this.signal;
+    }
+
+    public void setSpikeTrain(List<Integer> spikeTrain){
+        int[] ret = new int[spikeTrain.size()];
+        for (int i = 0; i < ret.length; i++) {
+            ret[i] = spikeTrain.get(i);
+        }
+        this.spikeTrain = ret;
+    }
+
+    public int[] getSpikeTrain() {
+        return this.spikeTrain;
     }
 
     public String printData() {
