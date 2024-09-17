@@ -12,6 +12,7 @@ import ij.measure.ResultsTable;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 
+import java.awt.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -44,6 +45,8 @@ public class Exporter {
 
     ArrayList<ImagePlus> iterations = new ArrayList<ImagePlus>();
     ArrayList<CellData> cells;
+    ImagePlus imp;
+    ImagePlus averageImp;
 
 
     private ResultsTable rt_raw = new ResultsTable();
@@ -52,11 +55,17 @@ public class Exporter {
     private final String[] methods = new String[]{">3σ", "Peak Detection", "None"};
     private final String[] filters = new String[]{"Gaussian", "None"};
 
+
+
+    public static final int FILTER_GAUSSIAN = 0;
+    public static final int FILTER_NONE = 1;
+
     public Exporter(ArrayList<CellData> cells){
         this.cells = cells;
     }
 
     public void exportData() throws BackingStoreException {
+        this.imp = IJ.getImage();
         setParameters();
         getIterations();
 
@@ -68,10 +77,12 @@ public class Exporter {
             imp.addSlice(ip);
         }
 
-        ImagePlus averageImp = new ImagePlus(iterations.get(0).getTitle() + "_AVG", imp);
+        averageImp = new ImagePlus(iterations.get(0).getTitle() + "_AVG", imp);
         averageImp.show();
 
-        filterSignal(averageImp);
+        filterSignal();
+        detectPeaks();
+        getResultsTable();
     }
 
     public ImageProcessor averageIterations() {
@@ -100,19 +111,21 @@ public class Exporter {
         return rp;
     }
 
-    public void filterSignal(ImagePlus imp){
+    public void filterSignal(){
         int nSlices = imp.getNSlices();
         IJ.showStatus("Filtering signal...");
         IJ.showProgress(0, (int) cells.size()*nSlices);
         int cellIndex = 0;
         for (CellData cell : cells) {
             double[] signal = new double[nSlices];
+            IJ.log("Slices "+ nSlices);
             for (int i = 1; i <= nSlices; i++) {
+                IJ.log(Integer.toString(i));
                 imp.setSlice(i);
                 ImageProcessor ip = imp.getProcessor();
                 ip.setRoi(cell.getCellRoi());
                 ImageStatistics stats = ip.getStatistics();
-                signal[i] = stats.mean;
+                signal[i-1] = stats.mean;
                 IJ.showProgress(cellIndex*i,cells.size()*nSlices);
             }
             cell.setSignal(signal);
@@ -120,24 +133,23 @@ public class Exporter {
         }
     }
 
-    public void detectPeaks(ImagePlus imp) {
+    public void detectPeaks() {
         int nSlices = imp.getNSlices();;
         IJ.showStatus("Detecting peaks...");
         IJ.showProgress(0, (int) cells.size()*nSlices);
-        int cellIndex = 0;
         for (CellData cell : cells){
             List<Double> signal = Arrays.stream(cell.getSignal())
                     .boxed()
                     .collect(Collectors.toList());
 
             SignalDetector sd = new SignalDetector();
-            HashMap<String, List> map = sd.analyzeDataForSignals(signal, lag, threshold, influence);
+            HashMap<String, List> map = sd.peakLaggingWindow(signal, lag, threshold, influence);
             cell.setSpikeTrain(map.get("signals"));
         }
 
     }
 
-    public void getResultsTable(ImagePlus imp){
+    public void getResultsTable(){
         if(imp.getTitle().contains("_DELTAF")){
             convertedFormat = true;
         } else {
@@ -151,7 +163,7 @@ public class Exporter {
         String name = imp.getTitle().trim();
 
         for (CellData cell : cells){
-            IJ.showProgress(progress, cells.size());
+            IJ.showProgress(progress, imp.getNSlices()*cells.size());
 
             rt_raw.incrementCounter();
             rt_stim.incrementCounter();
@@ -175,10 +187,9 @@ public class Exporter {
             rt_stim.addValue("Detection.Method", methods[this.method]);
 
             for (int i = 1; i <= imp.getNSlices(); i++){
-                rt_raw.addValue("Slice_" + i, cell.getSignal()[i]);
-                rt_stim.addValue("Slice_" + i, cell.getBinary()[i]);
+                rt_raw.addValue("Slice_" + i, cell.getSignal()[i-1]);
+                rt_stim.addValue("Slice_" + i, cell.getSpikeTrain()[i-1]);
             }
-
 
             progress++;
         }

@@ -14,6 +14,5 @@ public class Main implements PlugIn {
     @Override
     public void run(String arg) {
         new CellManager().setVisible(true);
-
     }
 }

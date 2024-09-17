@@ -3,7 +3,9 @@ package Cell.Utils;
 import Cell.Analysis.SignalDetector;
 import Cell.Analysis.SignalFilter;
 import Cell.Frame.Plot;
+import Cell.Processing.CellDetection;
 import ij.IJ;
+import ij.ImagePlus;
 
 import java.awt.*;
 import java.util.Arrays;
@@ -66,6 +68,13 @@ public class Test {
         Plot plt = new Plot(signalList);
         plt.plotSpikeTrain();
 
+    }
+
+    public static void testBlur() {
+        ImagePlus pre = new ImagePlus("D:/Repositories/Multi-Cell-Analysis/src/main/java/Cell/Resources/Template.tif");
+        pre.show();
+        CellDetection cd = new CellDetection(pre);
+        cd.runStarDist();
     }
 
 }

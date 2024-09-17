@@ -1,33 +1,30 @@
 package Cell.Frame;
 
 import Cell.Analysis.Exporter;
-import Cell.Analysis.SignalFilter;
 import Cell.Annotation.SelectionGrouping;
 import Cell.Processing.CalciumProcessor;
 import Cell.Processing.MotionCorrection;
 import Cell.UI.Popup;
 import Cell.Utils.CellData;
-import static Cell.Utils.Math.seq;
 
 import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import java.awt.*;
 import java.awt.event.*;
-import java.util.*;
+import java.awt.Color;
 
 import Cell.Utils.Test;
 import Cell.Utils.Utils;
+import Cell.UI.WaitingUI;
+
 import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
-import ij.gui.GenericDialog;
-import ij.gui.Overlay;
-import ij.gui.Roi;
+import ij.gui.*;
 import ij.plugin.frame.RoiManager;
-import Cell.UI.WaitingUI;
 
-import java.awt.Color;
+import java.util.*;
 import java.util.List;
 import java.util.prefs.BackingStoreException;
 
@@ -219,8 +216,8 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             case "Load from ROI Manager":
                 importFromROIManager();
                 break;
-            case "Plot":
-                //Plot.main(null);
+            case "Delete cell":
+                delete();
                 break;
             case "More...":
                 JButton source = (JButton) e.getSource();
@@ -236,12 +233,106 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 nameCells();
                 break;
             case "Test":
-                Test.testGaussian();
-                Test.testSpikeDetection();
+                //Test.testGaussian();
+                //Test.testSpikeDetection();
+                Test.testBlur();
                 break;
             default:
                 throw new IllegalStateException("Unexpected value: " + label);
         }
+    }
+
+    private void delete() {
+        boolean cancel;
+        int count = getCount();
+        if (count == 0) {
+            popupError("The Cell manager is empty");
+        }
+        int indicies[] = getSelectedIndices();
+        if(indicies.length == 0){
+            String message = "Delete all items?";
+            YesNoCancelDialog d = new YesNoCancelDialog(this, "Cell Manager", message);
+            if(d.cancelPressed()){
+                cancel = true;
+                return;
+            }
+            if (!d.yesPressed()) {
+                return;
+            }
+            indicies = getAllIndicies();
+        }
+
+        if (count == indicies.length){
+            cells.clear();
+            listModel.removeAllElements();
+        } else {
+            for (int i = count-1; i>=0; i--){
+                boolean delete = false;
+                for (int j = 0; i <indicies.length; j++){
+                    if (indicies[j] == i){
+                        delete = true;
+                    }
+                    if (delete) {
+                        if(EventQueue.isDispatchThread()) {
+                            cells.remove(i);
+                            cellList.remove(i);
+                        } else {
+                            deleteOnEDT(i);
+                        }
+                    }
+                }
+            }
+        }
+
+        updateShowAll();
+    }
+
+    private void updateShowAll() {
+        ImagePlus imp = WindowManager.getCurrentImage();
+        if (imp == null) {return;}
+        if (showAll.isEnabled()){
+            if (getCount() > 0) {
+                CellData[] cells = getCellDataAsArray();
+                Overlay ol = new Overlay();
+                for (int i = 0; i < cells.length; i++) {
+                    setOverlay(imp, ol);
+                }
+            }
+        }
+    }
+
+    private void setOverlay(ImagePlus imp, Overlay overlay){
+        if (imp == null) {
+            return;
+        }
+        ImageCanvas ic = imp.getCanvas();
+        if (ic == null) {
+            if (imp.getOverlay()==null) {
+                imp.setOverlay(overlay);
+            }
+            return;
+        }
+        ic.setShowAllList(overlay);
+        imp.draw();
+    }
+
+    private void deleteOnEDT(final int i) {
+        try {
+            EventQueue.invokeAndWait(() -> {
+                cells.remove(i);
+                cellList.remove(i);
+            });
+        } catch (Exception ignored){
+        }
+    }
+
+    private int[] getAllIndicies() {
+        int count = getCount();
+        int[] indicies = new int[count];
+        for (int i =0; i < count; i++) {
+            indicies[i] = i;
+        }
+        return indicies;
     }
 
     private void groupSelection() {
@@ -751,9 +842,10 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         }
 
         CellData cd = cells.get(selectedIndex);
-        ImagePlus image = IJ.getImage();
-        if (image == null) {
+        if (WindowManager.getCurrentImage() == null) {
             return;
+        } else {
+            ImagePlus image = WindowManager.getCurrentImage();
         }
 
         if (!showingGroups) {

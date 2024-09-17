@@ -1,13 +1,15 @@
 package Cell.Analysis;
 
 import java.util.*;
-import java.util.stream.Collectors;
-
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 //Based on peak detection algorithm from https://stackoverflow.com/questions/22583391/peak-signal-detection-in-realtime-timeseries-data/56174275#56174275
 public class SignalDetector {
-    public HashMap<String, List> analyzeDataForSignals(List<Double> data, int lag, Double threshold, Double influence) {
+    public static final int PEAK_3SD = 0;
+    public static final int PEAK_LAG_WINDOW = 1;
+    public static final int PEAK_NONE = 2;
+
+    public HashMap<String, List> peakLaggingWindow(List<Double> data, int lag, Double threshold, Double influence) {
 
         SummaryStatistics stats = new SummaryStatistics();
         List<Integer> signals = new ArrayList<Integer>(Collections.nCopies(data.size(), 0));

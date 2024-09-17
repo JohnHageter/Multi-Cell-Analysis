@@ -110,8 +110,4 @@ public class CellData {
     public void setSpikeTrain(int[] spikeTrain){
         this.spikeTrain = spikeTrain;
     }
-
-    public int[] getBinary() {
-        return this.spikeTrain;
-    }
 }

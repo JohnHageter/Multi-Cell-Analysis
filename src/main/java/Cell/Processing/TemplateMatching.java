@@ -1,25 +1,21 @@
 package Cell.Processing;
 
 import ij.IJ;
-import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import org.bytedeco.javacpp.FloatPointer;
 import org.bytedeco.javacpp.Loader;
-import org.bytedeco.javacpp.presets.javacpp;
-import org.bytedeco.opencv.global.opencv_core;
-import org.bytedeco.opencv.opencv_core.Mat;
-import org.bytedeco.opencv.opencv_core.Size;
+import org.bytedeco.javacpp.opencv_core;
+import org.bytedeco.javacpp.opencv_core.Mat;
 
-import static org.bytedeco.opencv.global.opencv_core.CV_32F; // Use this constant for 32-bit float
-import static org.bytedeco.opencv.global.opencv_imgproc.matchTemplate;
-import static org.bytedeco.opencv.global.opencv_imgproc.CV_TM_CCOEFF;
+import static ijopencv.ij.ImagePlusMatConverter.toMat;
+import static org.bytedeco.javacpp.opencv_imgproc.CV_TM_CCOEFF;
+import static org.bytedeco.javacpp.opencv_imgproc.matchTemplate;
 
 public class TemplateMatching {
 
     public static FloatProcessor doMatch(ImageProcessor src, ImageProcessor tpl, boolean showR) {
-        Loader.load(javacpp.class);
-        Loader.load(opencv_core.class);
+        //Loader.load(opencv_core.class);
 
         if (src == null || tpl == null) {
             IJ.error("Source or template image is null.");
@@ -36,9 +32,9 @@ public class TemplateMatching {
             return null;
         }
 
-        Mat matSrc = convertToMat(src);
-        Mat matTpl = convertToMat(tpl);
-        Mat res = new Mat(new Size(srcW - tplW + 1, srcH - tplH + 1), CV_32F);
+        opencv_core.Mat matSrc = toMat(src);
+        opencv_core.Mat matTpl = toMat(tpl);
+        Mat res = new Mat(new opencv_core.Size(srcW - tplW + 1, srcH - tplH + 1));
 
         matchTemplate(matSrc, matTpl, res, CV_TM_CCOEFF);
 
@@ -53,24 +49,5 @@ public class TemplateMatching {
         res.release();
 
         return resultFp;
-    }
-
-
-    private static Mat convertToMat(ImageProcessor ip) {
-        int width = ip.getWidth();
-        int height = ip.getHeight();
-
-        if (ip instanceof FloatProcessor) {
-            return new Mat(height, width, CV_32F, new FloatPointer((float[]) ip.getPixels()));
-        } else if (ip instanceof ByteProcessor) {
-            byte[] pixels = (byte[]) ip.getPixels();
-            float[] floatPixels = new float[pixels.length];
-            for (int i = 0; i < pixels.length; i++) {
-                floatPixels[i] = (float) (pixels[i] & 0xFF);
-            }
-            return new Mat(height, width, CV_32F, new FloatPointer(floatPixels));
-        } else {
-            throw new IllegalArgumentException("Unsupported ImageProcessor type: " + ip.getClass().getName());
-        }
     }
 }

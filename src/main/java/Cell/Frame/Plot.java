@@ -10,13 +10,10 @@ import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
 import javax.swing.*;
-import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import java.awt.*;
 import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.DoubleStream;
 
 import Cell.Analysis.SignalDetector;
 
@@ -35,17 +32,13 @@ public class Plot extends JFrame {
     public void plotSpikeTrain() {
         setLayout(new BorderLayout());
 
-        // Initialize sliders
         lagSlider = createSlider(1, 100, 30, "Lag");
-        thresholdSlider = createSlider(0, 100, 35, "Threshold (x 0.1)", 0.1);
-        influenceSlider = createSlider(0, 100, 50, "Influence (x 0.01)", 0.01);
-
-        // Initialize labels
+        thresholdSlider = createSlider(0, 100, 35, "Threshold", 0.1);
+        influenceSlider = createSlider(0, 100, 50, "Influence", 0.01);
         lagLabel = new JLabel("Lag: 30");
         thresholdLabel = new JLabel("Threshold: 3.5");
         influenceLabel = new JLabel("Influence: 0.50");
 
-        // Panel for sliders and labels
         JPanel sliderPanel = new JPanel(new GridLayout(3, 2));
         sliderPanel.add(lagSlider);
         sliderPanel.add(lagLabel);
@@ -54,23 +47,16 @@ public class Plot extends JFrame {
         sliderPanel.add(influenceSlider);
         sliderPanel.add(influenceLabel);
 
-        // Add change listener to sliders
-        ChangeListener sliderListener = new ChangeListener() {
-            @Override
-            public void stateChanged(ChangeEvent e) {
-                updateLabels();  // Update labels when sliders change
-                updatePlot();    // Re-plot the graph with new slider values
-            }
+        ChangeListener sliderListener = e -> {
+            updateLabels();
+            updatePlot();
         };
 
         lagSlider.addChangeListener(sliderListener);
         thresholdSlider.addChangeListener(sliderListener);
         influenceSlider.addChangeListener(sliderListener);
 
-        // Add slider panel to the frame
         add(sliderPanel, BorderLayout.SOUTH);
-
-        // Initial plot
         updatePlot();
 
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -92,7 +78,6 @@ public class Plot extends JFrame {
     }
 
     private void updateLabels() {
-        // Update the labels with current slider values
         int lag = lagSlider.getValue();
         double threshold = thresholdSlider.getValue() / 10.0;
         double influence = influenceSlider.getValue() / 100.0;
@@ -103,26 +88,21 @@ public class Plot extends JFrame {
     }
 
     private void updatePlot() {
-        // Get slider values
         int lag = lagSlider.getValue();
         double threshold = thresholdSlider.getValue() / 10.0;
         double influence = influenceSlider.getValue() / 100.0;
 
-        // Analyze signal
-        responseList = sd.analyzeDataForSignals(signal, lag, threshold, influence);
+        responseList = sd.peakLaggingWindow(signal, lag, threshold, influence);
         List<Integer> binary = responseList.get("signals");
 
-        // Create series for spike train
         XYSeries spikeSeries = new XYSeries("Spike Train");
         for (int i = 0; i < binary.size(); i++) {
                 spikeSeries.add(i, binary.get(i));
         }
 
-        // Add the series to dataset
         XYSeriesCollection dataset = new XYSeriesCollection();
         dataset.addSeries(spikeSeries);
 
-        // Create chart
         JFreeChart chart = ChartFactory.createXYLineChart(
                 "Binary Spike Train", // Chart title
                 "Time", // X-axis label
@@ -139,12 +119,11 @@ public class Plot extends JFrame {
         renderer.setSeriesPaint(0, Color.BLACK);
         plot.setRenderer(renderer);
 
-        // Update the chart panel
         if (chartPanel != null) {
-            chartPanel.setChart(chart);  // Update chart in existing panel
+            chartPanel.setChart(chart);
         } else {
-            chartPanel = new ChartPanel(chart);  // Create new chart panel if it doesn't exist
-            add(chartPanel, BorderLayout.CENTER);  // Add chart panel to the frame
+            chartPanel = new ChartPanel(chart);
+            add(chartPanel, BorderLayout.CENTER);
         }
 
         revalidate();
