@@ -38,8 +38,12 @@ public class CellDetection {
         this.imp_mat = toMat(imp);
     }
 
+    public CellDetection(){}
+
     public void runStarDist(){
-        IJ.run(imp,"StarDist 2D", "");
+        new Thread(() -> {
+            IJ.run("StarDist 2D", "");
+        }).start();
     }
 
 //    public ArrayList<CellData> detectContourCells() {

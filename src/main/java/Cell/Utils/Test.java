@@ -71,9 +71,9 @@ public class Test {
     }
 
     public static void testBlur() {
-        ImagePlus pre = new ImagePlus("D:/Repositories/Multi-Cell-Analysis/src/main/java/Cell/Resources/Template.tif");
-        pre.show();
-        CellDetection cd = new CellDetection(pre);
+        //ImagePlus pre = new ImagePlus("D:/Repositories/Multi-Cell-Analysis/src/main/java/Cell/Resources/Template.tif");
+        //pre.show();
+        CellDetection cd = new CellDetection();
         cd.runStarDist();
     }
 
