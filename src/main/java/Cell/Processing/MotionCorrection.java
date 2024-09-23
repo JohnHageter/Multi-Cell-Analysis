@@ -66,7 +66,7 @@ public class MotionCorrection {
         target = stack.getProcessor(slice);
         target.resetRoi();
 
-        result = TemplateMatching.doMatch(target.crop(), reference, edge);
+        result = TemplateMatching.doMatch(target.crop(), reference);
         assert result != null;
         dxdy = findMax(result, 0);
 
@@ -94,9 +94,10 @@ public class MotionCorrection {
         }
 
         target.resetRoi();
-        target.translate(disX, disY);
+        //target.translate(disX, disY);
 
         registered.addSlice(target.duplicate());
+        registered.getProcessor(slice).translate(disX,disY);
     }
 
     public static int[] findMax(ImageProcessor ip, int sW) {

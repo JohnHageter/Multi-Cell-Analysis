@@ -4,18 +4,16 @@ import ij.IJ;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import org.bytedeco.javacpp.FloatPointer;
-import org.bytedeco.javacpp.Loader;
-import org.bytedeco.javacpp.opencv_core;
-import org.bytedeco.javacpp.opencv_core.Mat;
+import org.bytedeco.opencv.opencv_core.Mat;
+import org.bytedeco.opencv.opencv_core.Size;
 
-import static ijopencv.ij.ImagePlusMatConverter.toMat;
-import static org.bytedeco.javacpp.opencv_imgproc.CV_TM_CCOEFF;
-import static org.bytedeco.javacpp.opencv_imgproc.matchTemplate;
+import static Cell.Utils.ImageCV.toMat;
+import static org.bytedeco.opencv.global.opencv_imgproc.CV_TM_CCOEFF;
+import static org.bytedeco.opencv.global.opencv_imgproc.matchTemplate;
 
 public class TemplateMatching {
 
-    public static FloatProcessor doMatch(ImageProcessor src, ImageProcessor tpl, boolean showR) {
-        //Loader.load(opencv_core.class);
+    public static FloatProcessor doMatch(ImageProcessor src, ImageProcessor tpl) {
 
         if (src == null || tpl == null) {
             IJ.error("Source or template image is null.");
@@ -32,14 +30,14 @@ public class TemplateMatching {
             return null;
         }
 
-        opencv_core.Mat matSrc = toMat(src);
-        opencv_core.Mat matTpl = toMat(tpl);
-        Mat res = new Mat(new opencv_core.Size(srcW - tplW + 1, srcH - tplH + 1));
+        Mat matSrc = toMat(src);
+        Mat matTpl = toMat(tpl);
+        Mat res = new Mat(new Size(srcW - tplW + 1, srcH - tplH + 1));
 
         matchTemplate(matSrc, matTpl, res, CV_TM_CCOEFF);
 
         FloatProcessor resultFp = new FloatProcessor(res.cols(), res.rows());
-        float[] resultPixels = (float[]) resultFp.getPixels(); // Get the float pixels array
+        float[] resultPixels = (float[]) resultFp.getPixels();
 
         FloatPointer floatPointer = new FloatPointer(res.data().asByteBuffer().asFloatBuffer());
         floatPointer.get(resultPixels);

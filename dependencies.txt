@@ -1,5 +1,6 @@
-JavaCPP 1.5.10
-OpenCV 4.9.0-1.5.10
-openblas ?-1.5.10
+Platform dependencies
+Update Site for StarDist and CBSDeep
+Update Site for IJ-OpenCV-Plugins
+MCA.jar
 
-platform dependent libraries
+OpenBLAS?

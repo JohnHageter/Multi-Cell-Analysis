@@ -91,11 +91,11 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         gbc.weighty = 0;
         addButton("Register",               2, 0, 1, 1);
         addButton("Apply group(s)",         2, 1, 1, 1);
-        addButton("Select multiple",        2, 2, 1, 1);
+        //addButton("Select multiple",        2, 2, 1, 1);
         addButton("Analyze",                2, 3, 1, 1);
         addButton("Convert stack to DF/F",  2, 4, 1, 1);
         addButton("Load from ROI Manager",  2, 5, 1, 1);
-        addButton("Plot",                   2, 6, 1, 1);
+        //addButton("Plot",                   2, 6, 1, 1);
         addButton("More...",                2, 8, 1, 1);
         addMoreMenu();
 
@@ -178,7 +178,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
         switch (label) {
             case "Register":
-                if(IJ.getImage()!= null){
+                if(WindowManager.getCurrentImage()!= null){
                     WaitingUI waitingUI = new WaitingUI("Motion Correction", "Select template ROI");
                     waitingUI.setTask(() -> {
                         MotionCorrection mc = new MotionCorrection(IJ.getImage().getRoi());
@@ -186,10 +186,11 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                     });
                 } else {
                     IJ.noImage();
+                    return;
                 }
                 break;
             case "Apply group(s)":
-                if(IJ.getImage() != null){
+                if(WindowManager.getCurrentImage() != null){
                     groupSelection();
                 } else {
                     IJ.noImage();
@@ -199,7 +200,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 logAction("Select multiple");
                 break;
             case "Analyze":
-                if (IJ.getImage()!= null) {
+                if (WindowManager.getCurrentImage()!= null) {
                     Exporter exporter = new Exporter(cells);
                     try {
                         exporter.exportData();
@@ -232,7 +233,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             case "Set standard name":
                 nameCells();
                 break;
-            case "Test":
+            case "Debug tests":
                 //Test.testGaussian();
                 //Test.testSpikeDetection();
                 Test.testBlur();
@@ -243,17 +244,15 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     }
 
     private void delete() {
-        boolean cancel;
         int count = getCount();
         if (count == 0) {
             popupError("The Cell manager is empty");
         }
-        int indicies[] = getSelectedIndices();
+        int[] indicies = getSelectedIndices();
         if(indicies.length == 0){
             String message = "Delete all items?";
             YesNoCancelDialog d = new YesNoCancelDialog(this, "Cell Manager", message);
             if(d.cancelPressed()){
-                cancel = true;
                 return;
             }
             if (!d.yesPressed()) {
@@ -268,12 +267,12 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         } else {
             for (int i = count-1; i>=0; i--){
                 boolean delete = false;
-                for (int j = 0; i <indicies.length; j++){
-                    if (indicies[j] == i){
+                for (int index : indicies) {
+                    if (index == i) {
                         delete = true;
                     }
                     if (delete) {
-                        if(EventQueue.isDispatchThread()) {
+                        if (EventQueue.isDispatchThread()) {
                             cells.remove(i);
                             cellList.remove(i);
                         } else {

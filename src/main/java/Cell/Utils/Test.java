@@ -1,18 +1,15 @@
 package Cell.Utils;
 
-import Cell.Analysis.SignalDetector;
 import Cell.Analysis.SignalFilter;
 import Cell.Frame.Plot;
-import Cell.Processing.CellDetection;
 import ij.IJ;
-import ij.ImagePlus;
 
 import java.awt.*;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static Cell.Processing.CellDetection.runStarDist;
 import static Cell.Utils.Math.seq;
 
 public class Test {
@@ -71,10 +68,7 @@ public class Test {
     }
 
     public static void testBlur() {
-        //ImagePlus pre = new ImagePlus("D:/Repositories/Multi-Cell-Analysis/src/main/java/Cell/Resources/Template.tif");
-        //pre.show();
-        CellDetection cd = new CellDetection();
-        cd.runStarDist();
+        runStarDist();
     }
 
 }
