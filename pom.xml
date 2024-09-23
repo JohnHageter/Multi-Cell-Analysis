@@ -11,7 +11,11 @@
     <repositories>
         <repository>
             <id>com.github.psambit9791</id>
-            <url>https://github.com/psambit9791/jdsp</url>
+            <url>https://www.github.com/psambit9791/jdsp</url>
+        </repository>
+        <repository>
+            <id>io.github.joheras</id>
+            <url>https://www.github.com/joheras/ijopencv</url>
         </repository>
         <repository>
             <id>sonatype-nexus-staging</id>
@@ -28,14 +32,14 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.github.psambit9791</groupId>
+            <artifactId>jdsp</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+        <dependency>
             <groupId>net.imagej</groupId>
             <artifactId>ij</artifactId>
             <version>1.54f</version>
-        </dependency>
-        <dependency>
-            <groupId>io.github.joheras</groupId>
-            <artifactId>IJ-OpenCV</artifactId>
-            <version>1.2.1</version>
         </dependency>
         <dependency>
             <groupId>org.opencb.commons</groupId>
@@ -43,14 +47,14 @@
             <version>2.0.0</version>
         </dependency>
         <dependency>
-            <groupId>com.github.psambit9791</groupId>
-            <artifactId>jdsp</artifactId>
-            <version>3.0.0</version>
-        </dependency>
-        <dependency>
             <groupId>org.bytedeco</groupId>
             <artifactId>openblas-platform</artifactId>
             <version>0.3.26-1.5.10</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.joheras</groupId>
+            <artifactId>IJ-OpenCV</artifactId>
+            <version>1.2.1</version>
         </dependency>
         <dependency>
             <groupId>org.bytedeco.javacpp-presets</groupId>
@@ -73,9 +77,9 @@
             <version>2.97.0</version>
         </dependency>
         <dependency>
-            <groupId>com.github.stardist</groupId>
-            <artifactId>stardist-imagej</artifactId>
-            <version>0.3.0</version>
+            <groupId>org.jfree</groupId>
+            <artifactId>jfreechart</artifactId>
+            <version>1.5.4</version>
         </dependency>
     </dependencies>
 

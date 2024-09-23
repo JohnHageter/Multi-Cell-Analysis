@@ -1,7 +1,5 @@
 package Cell.Analysis;
 
-import com.github.psambit9791.jdsp.filter.*;
-
 public class SignalFilter {
     private int samplingRate;
     private int order;

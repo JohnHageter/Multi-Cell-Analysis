@@ -12,6 +12,11 @@
       <option name="url" value="https://repo.maven.apache.org/maven2" />
     </remote-repository>
     <remote-repository>
+      <option name="id" value="io.github.joheras" />
+      <option name="name" value="io.github.joheras" />
+      <option name="url" value="https://github.com/joheras/ij-opencv-plugins" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="central" />
       <option name="name" value="Maven Central repository" />
       <option name="url" value="https://repo1.maven.org/maven2" />
@@ -45,6 +50,11 @@
       <option name="id" value="sonatype-nexus-staging" />
       <option name="name" value="Sonatype Nexus Staging" />
       <option name="url" value="https://mvnrepository.com/artifact/org.bytedeco/javacv" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="io.github.joheras" />
+      <option name="name" value="io.github.joheras" />
+      <option name="url" value="https://github.com/joheras/ijopencv" />
     </remote-repository>
     <remote-repository>
       <option name="id" value="com.github.joheras" />

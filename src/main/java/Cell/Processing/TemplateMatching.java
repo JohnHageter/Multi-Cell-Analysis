@@ -8,7 +8,7 @@ import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.opencv_core;
 import org.bytedeco.javacpp.opencv_core.Mat;
 
-import static ijopencv.ij.ImagePlusMatConverter.toMat;
+import static ijopencv.ij  .ImagePlusMatConverter.toMat;
 import static org.bytedeco.javacpp.opencv_imgproc.CV_TM_CCOEFF;
 import static org.bytedeco.javacpp.opencv_imgproc.matchTemplate;
 

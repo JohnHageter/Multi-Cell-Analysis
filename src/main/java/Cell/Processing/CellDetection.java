@@ -1,31 +1,8 @@
 package Cell.Processing;
 
-
-import Cell.Utils.CellData;
 import ij.IJ;
 import ij.ImagePlus;
-import ij.gui.PolygonRoi;
-import ij.gui.Roi;
-import ij.plugin.frame.RoiManager;
-import ij.process.FloatPolygon;
-import ijopencv.ij.ImagePlusMatVectorConverter;
-import org.bytedeco.javacpp.*;
 import org.bytedeco.javacpp.opencv_core.Mat;
-import org.bytedeco.javacpp.opencv_core.Size;
-import org.bytedeco.javacpp.opencv_imgproc;
-
-import java.awt.*;
-import java.util.ArrayList;
-
-import org.bytedeco.javacpp.opencv_core.*;
-import org.bytedeco.javacpp.opencv_imgproc.*;
-import static ijopencv.ij.ImagePlusMatConverter.*;
-import static ijopencv.opencv.MatImagePlusConverter.*;
-import static org.bytedeco.javacpp.opencv_imgproc.cvtColor;
-import static org.bytedeco.javacpp.opencv_core.*;
-import static org.bytedeco.javacpp.opencv_imgproc.*;
-
-import de.csbdresden.stardist.*;
 
 public class CellDetection {
     private ImagePlus imp;
@@ -33,9 +10,6 @@ public class CellDetection {
 
     public CellDetection(ImagePlus imp) {
         this.imp = imp;
-        //Loader.load(opencv_core.class);
-        //Loader.load(ImagePlusMatVectorConverter.class);
-        this.imp_mat = toMat(imp);
     }
 
     public CellDetection(){}
