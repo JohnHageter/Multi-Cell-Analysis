@@ -33,12 +33,12 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     private static CellManager instance;
     private JList<String> cellList;
     private JList<String> groupList;
-    private DefaultListModel<String> cellListModel;
-    private DefaultListModel<String> groupsListModel;
+    private DefaultListModel<String> listModel;
     private int nButtons = 0;
     private GridBagLayout layout = new GridBagLayout();
     private static JPanel panel = new JPanel();
     private JPopupMenu pm;
+    private Color defaultColor;
     private JCheckBox showAll;
     private static GridBagConstraints gbc = new GridBagConstraints();
     private boolean showingGroups = false;
@@ -46,6 +46,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     public ArrayList<CellData> cells = new ArrayList<>();
     private Overlay allCellOverlay;
     private Overlay allGroupOverlay;
+    private int defaultlwd;
 
 
     public CellManager() {
@@ -57,8 +58,11 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
         instance = this;
         cellList = new JList<>();
-        cellListModel = new DefaultListModel<>();
-        cellList.setModel(cellListModel);
+        listModel = new DefaultListModel<>();
+        cellList.setModel(listModel);
+
+        groupList = new JList<>();
+        groupList.setModel(listModel);
         showCellManager();
     }
 
@@ -90,20 +94,21 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
         gbc.weightx = 1;
         gbc.weighty = 0;
-        addButton("Register", 2, 0, 1, 1);
-        addButton("Apply group(s)", 2, 1, 1, 1);
-        addButton("Analyze", 2, 3, 1, 1);
-        addButton("Convert stack to DF/F", 2, 4, 1, 1);
-        addButton("Load from ROI Manager", 2, 5, 1, 1);
+        addButton("Register",                   2, 0, 1, 1);
+        addButton("Apply group(s)",             2, 1, 1, 1);
+        addButton("Analyze",                    2, 3, 1, 1);
+        addButton("Convert stack to DF/F",      2, 4, 1, 1);
+        addButton("Add cell [`]",               2, 5, 1, 1);
+        addButton("Delete cell",                2, 6, 1, 1);
+        addButton("Load from ROI Manager",      2, 7, 1, 1);
         addMoreMenu();
 
-        // Create CardLayout for switching between Cells and Groups
         CardLayout cardLayout = new CardLayout();
         JPanel cardPanel = new JPanel(cardLayout);
 
         // Cells list
         JPanel cellsPanel = new JPanel(new BorderLayout());
-        cellList.setModel(cellListModel);
+        cellList.setModel(listModel);
         cellList.addListSelectionListener(this);
         cellList.addKeyListener(IJ.getInstance());
         cellList.addMouseListener(this);
@@ -113,81 +118,45 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
         // Groups list
         JPanel groupsPanel = new JPanel(new BorderLayout());
-        DefaultListModel<String> groupListModel = new DefaultListModel<>();
-        JList<String> groupList = new JList<>(groupListModel);
+        groupList.setModel(listModel);
         groupList.addListSelectionListener(this);
+        groupList.addKeyListener(IJ.getInstance());
+        groupList.addMouseListener(this);
+        groupList.addMouseWheelListener(this);
         JScrollPane groupsScrollPane = new JScrollPane(groupList, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         groupsPanel.add(groupsScrollPane, BorderLayout.CENTER);
 
-        // Add both lists to the CardLayout
         cardPanel.add(cellsPanel, "Cells");
         cardPanel.add(groupsPanel, "Groups");
 
-        // Make the JScrollPane two rows larger
         gbc.gridx = 0;
         gbc.gridy = 0;
-        gbc.gridwidth = 2;
-        gbc.gridheight = nButtons + 2; // Increased the grid height by 2 to enlarge the scroll pane
+        gbc.gridwidth = 1;
+        gbc.gridheight = nButtons + 3;
         gbc.weightx = 1.0;
         gbc.weighty = 1.0;
         layout.setConstraints(cardPanel, gbc);
         panel.add(cardPanel, gbc);
 
-        // Show all checkbox
+
         showAll = new JCheckBox("Show all");
         showAll.addItemListener(this);
         gbc.gridx = 2;
-        gbc.gridy = 7;
+        gbc.gridy = 8;
         gbc.gridwidth = 1;
         gbc.gridheight = 1;
         panel.add(showAll, gbc);
 
-        // Add buttons to switch between Cells and Groups along with the "More..." button
         gbc.gridx = 0;
         gbc.gridy = GridBagConstraints.RELATIVE;
-        gbc.gridwidth = 3; // Adjust grid width to fit the "More..." button as well
+        gbc.gridwidth = 3;
         gbc.gridheight = 1;
         gbc.weightx = 0;
         gbc.weighty = 0;
 
-        JPanel buttonPanel = new JPanel(new GridLayout(1, 3)); // GridLayout(1, 3) to fit three buttons
-        JButton cellsButton = new JButton("Cells");
-        JButton groupsButton = new JButton("Groups");
-        JButton moreButton = new JButton("More...");
-
-        // Create a method to update button appearance based on the selected tab
-        ActionListener updateButtonAppearance = e -> {
-            String command = e.getActionCommand();
-            if (command.equals("Cells")) {
-                cellsButton.setBackground(Color.LIGHT_GRAY);  // Set selected tab to a different color
-                groupsButton.setBackground(null);             // Reset the other button
-                cardLayout.show(cardPanel, "Cells");
-            } else if (command.equals("Groups")) {
-                groupsButton.setBackground(Color.LIGHT_GRAY);
-                cellsButton.setBackground(null);
-                cardLayout.show(cardPanel, "Groups");
-            }
-        };
-
-        // Add ActionListeners to switch between Cells and Groups with tab indication
-        cellsButton.addActionListener(updateButtonAppearance);
-        cellsButton.setActionCommand("Cells");  // Set a command to identify the tab
-        groupsButton.addActionListener(updateButtonAppearance);
-        groupsButton.setActionCommand("Groups");
-
-        moreButton.addActionListener(e -> addMoreMenu());
-
-        // Set the initial button appearance (default to Cells tab)
-        cellsButton.setBackground(Color.LIGHT_GRAY);  // Cells is selected by default
-
-        buttonPanel.add(cellsButton);
-        buttonPanel.add(groupsButton);
-        buttonPanel.add(moreButton);
-
+        JPanel buttonPanel = getButtonPanel(cardLayout, cardPanel);
         layout.setConstraints(buttonPanel, gbc);
         panel.add(buttonPanel, gbc);
-
-        // Finalize UI setup
         this.add(panel);
         this.pack();
 
@@ -200,73 +169,38 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         });
     }
 
+    private JPanel getButtonPanel(CardLayout cardLayout, JPanel cardPanel) {
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 2));
+        JButton cellsButton = new JButton("Cells");
+        JButton groupsButton = new JButton("Groups");
+        JButton moreButton = new JButton("More...");
 
-//    private void initializeUI() {
-//        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-//        addMouseListener(this);
-//        addMouseWheelListener(this);
-//
-//        panel.setLayout(layout);
-//
-//        gbc.fill = GridBagConstraints.BOTH;
-//        gbc.insets = new Insets(1, 1, 1, 1);
-//
-//
-//        gbc.weightx = 1;
-//        gbc.weighty = 0;
-//        addButton("Register",               2, 0, 1, 1);
-//        addButton("Apply group(s)",         2, 1, 1, 1);
-//        //addButton("Select multiple",        2, 2, 1, 1);
-//        addButton("Analyze",                2, 3, 1, 1);
-//        addButton("Convert stack to DF/F",  2, 4, 1, 1);
-//        addButton("Load from ROI Manager",  2, 5, 1, 1);
-//        //addButton("Plot",                   2, 6, 1, 1);
-//        addButton("More...",                2, 8, 1, 1);
-//        addMoreMenu();
-//
-//        addButton("Cells", 0, nButtons, 1, 1);
-//        nButtons--;
-//        addButton("Groups", 1, nButtons, 1, 1);
-//        nButtons--;
-//
-//        showAll = new JCheckBox("Show all");
-//        showAll.addItemListener(this);
-//        gbc.gridx = 2;
-//        gbc.gridy = 7;
-//        gbc.gridwidth = 1;
-//        gbc.gridheight = 1;
-//        gbc.fill = GridBagConstraints.BOTH;
-//        panel.add(showAll, gbc);
-//
-//        gbc.gridx = 0;
-//        gbc.gridy = 0;
-//        gbc.gridwidth = 2;
-//        gbc.gridheight = nButtons;
-//        gbc.weightx = 1.0;
-//        gbc.weighty = 1.0;
-//
-//        listModel = new DefaultListModel<>();
-//        cellList.setModel(listModel);
-//        cellList.addListSelectionListener(this);
-//        cellList.addKeyListener(IJ.getInstance());
-//        cellList.addMouseListener(this);
-//        cellList.addMouseWheelListener(this);
-//        JScrollPane roiPane = new JScrollPane(cellList, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-//
-//        layout.setConstraints(roiPane, gbc);
-//        panel.add(roiPane, gbc);
-//
-//        this.add(panel);
-//        this.pack();
-//
-//        this.addComponentListener(new ComponentAdapter() {
-//            @Override
-//            public void componentResized(ComponentEvent e) {
-//                panel.revalidate();
-//                panel.repaint();
-//            }
-//        });
-//    }
+        ActionListener updateButtonAppearance = e -> {
+            String command = e.getActionCommand();
+            if (command.equals("Cells")) {
+                cellsButton.setBackground(Color.LIGHT_GRAY);
+                groupsButton.setBackground(null);
+                cardLayout.show(cardPanel, "Cells");
+            } else if (command.equals("Groups")) {
+                groupsButton.setBackground(Color.LIGHT_GRAY);
+                cellsButton.setBackground(null);
+                cardLayout.show(cardPanel, "Groups");
+            }
+        };
+
+        cellsButton.addActionListener(updateButtonAppearance);
+        cellsButton.setActionCommand("Cells");
+        groupsButton.addActionListener(updateButtonAppearance);
+        groupsButton.setActionCommand("Groups");
+
+        moreButton.addActionListener(e -> addMoreMenu());
+        cellsButton.setBackground(Color.LIGHT_GRAY);
+
+        buttonPanel.add(cellsButton);
+        buttonPanel.add(groupsButton);
+        buttonPanel.add(moreButton);
+        return buttonPanel;
+    }
 
     void addButton(String name, int gridx, int gridy, int gridwidth, int gridheight) {
         gbc.gridx = gridx;
@@ -342,6 +276,10 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             case "Load from ROI Manager":
                 importFromROIManager();
                 break;
+            case "Add cell [`]":
+                if(WindowManager.getCurrentImage() != null) {
+
+                }
             case "Delete cell":
                 delete();
                 break;
@@ -368,6 +306,56 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         }
     }
 
+    public void addCell(Roi roi) {
+        addCell(roi,false, null, -1);
+    }
+
+    boolean addCell(boolean namePrompt) {
+        return addCell(null, namePrompt, null, -1);
+    }
+
+    boolean addCell(Roi roi, boolean namePrompt, Color color, int lwd) {
+        if(listModel == null){
+            popupError("<<Cell Manager uninitialized>>");
+        }
+        ImagePlus imp = roi==null?getImage():WindowManager.getCurrentImage();
+        if(roi == null) {
+            if(imp == null) {
+                return false;
+            }
+            roi = imp.getRoi();
+            if(roi ==null){
+                popupError("No active selection");
+                return false;
+            }
+        }
+        if ((roi instanceof PolygonRoi) && ((PolygonRoi) roi).getNCoordinates()==0){
+            return false;
+        }
+        if(color == null && roi.getStrokeColor()!=null){
+            color = roi.getStrokeColor();
+        } else if(color == null && defaultColor!=null){
+            color = defaultColor;
+        }
+        if(lwd<0){
+            int sw = (int)roi.getStrokeWidth();
+            lwd = sw>1?sw:defaultlwd;
+        }
+        if(lwd>100) {lwd=1}
+        int n = getCount();
+        int saveCurrentSlice = imp!=null? imp.getCurrentSlice() : 0;
+        if(n>0 && imp!=null && allowDuplicates) {
+            Roi roi2 = (Roi)cells.get(n-1).getCellRoi();
+            if(roi2!= null) {
+                String label = (String)listModel.getElementAt(n-1);
+                int slice2 = getSliceNumber(roi2, label);
+                if(roi.equals(roi2) && (slice2==-1||slice2==imp.getCurrentSlice()) && imp.getID()==prevID){
+                    return false;
+                }
+            }
+        }
+    }
+
     private void delete() {
         int count = getCount();
         if (count == 0) {
@@ -388,7 +376,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
         if (count == indicies.length){
             cells.clear();
-            cellListModel.removeAllElements();
+            listModel.removeAllElements();
         } else {
             for (int i = count-1; i>=0; i--){
                 boolean delete = false;
@@ -504,15 +492,15 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
         String prefix = gd.getNextString();
 
-        for (int i = 0; i < cellListModel.size(); i++) {
+        for (int i = 0; i < listModel.size(); i++) {
             renameCell(i, prefix + "_" + i);
         }
 
     }
 
     private void renameCell(int index, String newName) {
-        if(index >=0 && index < cellListModel.getSize()) {
-            cellListModel.set(index, newName);
+        if(index >=0 && index < listModel.getSize()) {
+            listModel.set(index, newName);
             cells.get(index).setName(newName);
         } else {
             IJ.log("Index out of bounds for renaming");
@@ -544,7 +532,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             CellData cd = iterator.next();
             if (!roiNames.contains(cd.getName())) {
                 iterator.remove();
-                cellListModel.removeElement(cd.getName());
+                listModel.removeElement(cd.getName());
             }
         }
 
@@ -562,7 +550,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             if (!nameExists) {
                 CellData newCd = new CellData(roi);
                 cells.add(newCd);
-                cellListModel.addElement(newCd.getName());
+                listModel.addElement(newCd.getName());
             }
         }
     }
@@ -632,7 +620,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 protected Void doInBackground() {
                     CalciumProcessor cp = new CalciumProcessor();
                     cp.convertToDF(IJ.getImage(), finalBegin, finalEnd);
-                    //IJ.log("Conversion complete");
                     return null;
                 }
             }.execute();
@@ -655,7 +642,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     }
 
     public int getCount() {
-        return cellListModel!=null?cellListModel.getSize():0;
+        return listModel !=null? listModel.getSize():0;
     }
 
     public CellData getCellData(int index) {
@@ -688,7 +675,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
     public String getName(int index) {
         if(index>=0 && index<getCount()){
-            return (String)cellListModel.getElementAt(index);
+            return (String) listModel.getElementAt(index);
         } else {
             return null;
         }
@@ -724,8 +711,8 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
     public void deselect(CellData cd) {
         int[] indices = getSelectedIndices();
-        if (indices.length ==1 && cellListModel.getSize()>0) {
-            String label = cellListModel.getElementAt(indices[0]);
+        if (indices.length ==1 && listModel.getSize()>0) {
+            String label = listModel.getElementAt(indices[0]);
             if(label.equals(cd.getName())) {
                 deselect();
             }
@@ -755,9 +742,9 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     }
 
     private void showCells() {
-        cellListModel.clear();
+        listModel.clear();
         for (CellData cell : cells) {
-            cellListModel.addElement(cell.getName());
+            listModel.addElement(cell.getName());
         }
         showingGroups = false;
 
@@ -777,7 +764,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     }
 
     private void showGroups() {
-        cellListModel.clear();
+        listModel.clear();
         Set<String> groups = new HashSet<>();
 
         for (CellData cd : cells) {
@@ -788,7 +775,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         }
 
         for (String group : groups) {
-            cellListModel.addElement(group);
+            listModel.addElement(group);
         }
         showingGroups = true;
 
