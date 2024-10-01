@@ -23,6 +23,7 @@ import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.*;
 import ij.plugin.frame.RoiManager;
+import ij.util.Tools;
 
 import java.util.*;
 import java.util.List;
@@ -47,6 +48,8 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     private Overlay allCellOverlay;
     private Overlay allGroupOverlay;
     private int defaultlwd;
+    private boolean allowDuplicates;
+    private int prevID;
 
 
     public CellManager() {
@@ -101,10 +104,11 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         addButton("Add cell [`]",               2, 5, 1, 1);
         addButton("Delete cell",                2, 6, 1, 1);
         addButton("Load from ROI Manager",      2, 7, 1, 1);
-        addMoreMenu();
+        addButton("More...",                    2, 8, 1, 1);
 
-        CardLayout cardLayout = new CardLayout();
-        JPanel cardPanel = new JPanel(cardLayout);
+        addButton("Cells",                      0, 9, 1,1);
+        addButton("Groups",                     1,9,1,1);
+        addMoreMenu();
 
         // Cells list
         JPanel cellsPanel = new JPanel(new BorderLayout());
@@ -114,49 +118,25 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         cellList.addMouseListener(this);
         cellList.addMouseWheelListener(this);
         JScrollPane cellsScrollPane = new JScrollPane(cellList, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        cellsPanel.add(cellsScrollPane, BorderLayout.CENTER);
-
-        // Groups list
-        JPanel groupsPanel = new JPanel(new BorderLayout());
-        groupList.setModel(listModel);
-        groupList.addListSelectionListener(this);
-        groupList.addKeyListener(IJ.getInstance());
-        groupList.addMouseListener(this);
-        groupList.addMouseWheelListener(this);
-        JScrollPane groupsScrollPane = new JScrollPane(groupList, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        groupsPanel.add(groupsScrollPane, BorderLayout.CENTER);
-
-        cardPanel.add(cellsPanel, "Cells");
-        cardPanel.add(groupsPanel, "Groups");
 
         gbc.gridx = 0;
         gbc.gridy = 0;
-        gbc.gridwidth = 1;
-        gbc.gridheight = nButtons + 3;
+        gbc.gridwidth = 2;
+        gbc.gridheight = nButtons -1;
         gbc.weightx = 1.0;
         gbc.weighty = 1.0;
-        layout.setConstraints(cardPanel, gbc);
-        panel.add(cardPanel, gbc);
+        cellsPanel.add(cellsScrollPane, GridBagConstraints.RELATIVE);
+        panel.add(cellsPanel, gbc);
 
 
         showAll = new JCheckBox("Show all");
         showAll.addItemListener(this);
         gbc.gridx = 2;
-        gbc.gridy = 8;
+        gbc.gridy = 9;
         gbc.gridwidth = 1;
         gbc.gridheight = 1;
         panel.add(showAll, gbc);
 
-        gbc.gridx = 0;
-        gbc.gridy = GridBagConstraints.RELATIVE;
-        gbc.gridwidth = 3;
-        gbc.gridheight = 1;
-        gbc.weightx = 0;
-        gbc.weighty = 0;
-
-        JPanel buttonPanel = getButtonPanel(cardLayout, cardPanel);
-        layout.setConstraints(buttonPanel, gbc);
-        panel.add(buttonPanel, gbc);
         this.add(panel);
         this.pack();
 
@@ -169,40 +149,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         });
     }
 
-    private JPanel getButtonPanel(CardLayout cardLayout, JPanel cardPanel) {
-        JPanel buttonPanel = new JPanel(new GridLayout(1, 2));
-        JButton cellsButton = new JButton("Cells");
-        JButton groupsButton = new JButton("Groups");
-        JButton moreButton = new JButton("More...");
-
-        ActionListener updateButtonAppearance = e -> {
-            String command = e.getActionCommand();
-            if (command.equals("Cells")) {
-                cellsButton.setBackground(Color.LIGHT_GRAY);
-                groupsButton.setBackground(null);
-                cardLayout.show(cardPanel, "Cells");
-            } else if (command.equals("Groups")) {
-                groupsButton.setBackground(Color.LIGHT_GRAY);
-                cellsButton.setBackground(null);
-                cardLayout.show(cardPanel, "Groups");
-            }
-        };
-
-        cellsButton.addActionListener(updateButtonAppearance);
-        cellsButton.setActionCommand("Cells");
-        groupsButton.addActionListener(updateButtonAppearance);
-        groupsButton.setActionCommand("Groups");
-
-        moreButton.addActionListener(e -> addMoreMenu());
-        cellsButton.setBackground(Color.LIGHT_GRAY);
-
-        buttonPanel.add(cellsButton);
-        buttonPanel.add(groupsButton);
-        buttonPanel.add(moreButton);
-        return buttonPanel;
-    }
-
-    void addButton(String name, int gridx, int gridy, int gridwidth, int gridheight) {
+    private void addButton(String name, int gridx, int gridy, int gridwidth, int gridheight) {
         gbc.gridx = gridx;
         gbc.gridy = gridy;
         gbc.gridwidth = gridwidth;
@@ -216,13 +163,13 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         nButtons++;
     }
 
-    void addMoreMenu() {
+    private void addMoreMenu() {
         pm = new JPopupMenu();
         addMenuItem("Set standard name");
         addMenuItem("Test");
     }
 
-    void addMenuItem(String s) {
+    private void addMenuItem(String s) {
         JMenuItem mi = new JMenuItem(s);
         mi.addActionListener(this);
         pm.add(mi);
@@ -307,14 +254,15 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     }
 
     public void addCell(Roi roi) {
+        allowDuplicates = true;
         addCell(roi,false, null, -1);
     }
 
-    boolean addCell(boolean namePrompt) {
+    public boolean addCell(boolean namePrompt) {
         return addCell(null, namePrompt, null, -1);
     }
 
-    boolean addCell(Roi roi, boolean namePrompt, Color color, int lwd) {
+    public boolean addCell(Roi roi, boolean namePrompt, Color color, int lwd) {
         if(listModel == null){
             popupError("<<Cell Manager uninitialized>>");
         }
@@ -341,10 +289,9 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             int sw = (int)roi.getStrokeWidth();
             lwd = sw>1?sw:defaultlwd;
         }
-        if(lwd>100) {lwd=1}
+        if(lwd>100) {lwd=1;}
         int n = getCount();
-        int saveCurrentSlice = imp!=null? imp.getCurrentSlice() : 0;
-        if(n>0 && imp!=null && allowDuplicates) {
+        if(n>0 && imp!=null && !allowDuplicates) {
             Roi roi2 = (Roi)cells.get(n-1).getCellRoi();
             if(roi2!= null) {
                 String label = (String)listModel.getElementAt(n-1);
@@ -354,6 +301,108 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 }
             }
         }
+        allowDuplicates = false;
+        prevID = imp!=null?imp.getID():0;
+        String name = roi.getName();
+        if (isStandardName(name))
+            name = null;
+        String label = name!=null?name:getLabel(imp, roi, -1);
+        if(namePrompt){
+            label = promptForName(label);
+        }
+        if(label == null){
+            return false;
+        }
+        listModel.addElement(label);
+        roi.setName(label);
+        Roi roiCopy = (Roi)roi.clone();
+        boolean hasPosition = roiCopy.getPosition()>0 || roiCopy.getPosition()==PointRoi.POINT || roiCopy.hasHyperStackPosition();
+        if(!hasPosition && imp!= null && imp.getStackSize()>1){
+            roiCopy.setPosition(imp);
+        }
+        if(lwd>1){
+            roiCopy.setStrokeWidth(lwd);
+        }
+        if(color!=null){
+            roiCopy.setStrokeColor(color);
+        }
+        cells.add(new CellData(roiCopy));
+        updateShowAll();
+        return true;
+    }
+
+    private String getLabel(ImagePlus imp, Roi roi, int n) {
+        Rectangle r = roi.getBounds();
+        int xc = r.x + r.width/2;
+        int yc = r.y + r.height/2;
+        if (n>=0)
+        {xc = yc; yc=n;}
+        if (xc<0) xc = 0;
+        if (yc<0) yc = 0;
+        int digits = 4;
+        String xs = "" + xc;
+        if (xs.length()>digits) digits = xs.length();
+        String ys = "" + yc;
+        if (ys.length()>digits) digits = ys.length();
+        if (digits==4 && imp!=null && (imp.getStackSize()>=10000||imp.getHeight()>=10000))
+            digits = 5;
+        xs = "000000" + xc;
+        ys = "000000" + yc;
+        String label = ys.substring(ys.length()-digits) + "-" + xs.substring(xs.length()-digits);
+        if (imp!=null && imp.getStackSize()>1) {
+            int slice = imp.getCurrentSlice();
+            String zs = "000000" + slice;
+            label = zs.substring(zs.length()-digits) + "-" + label;
+        }
+        return label;
+    }
+
+    private String promptForName(String name) {
+        GenericDialog gd = new GenericDialog("ROI Manager");
+        gd.addStringField("Rename As:", name, 20);
+        gd.showDialog();
+        if (gd.wasCanceled())
+            return null;
+        else
+            return gd.getNextString();
+    }
+
+    private boolean isStandardName(String name) {
+        if (name==null)
+            return false;
+        int len = name.length();
+        if (len<9 || (len>0&&!Character.isDigit(name.charAt(0))))
+            return false;
+        boolean isStandard = false;
+        if (len>=14 && name.charAt(4)=='-' && name.charAt(9)=='-' )
+            isStandard = true;
+        else if (len>=17 && name.charAt(5)=='-' && name.charAt(11)=='-' )
+            isStandard = true;
+        else if (len>=9 && name.charAt(4)=='-' && Character.isDigit(name.charAt(5)))
+            isStandard = true;
+        else if (len>=11 && name.charAt(5)=='-' && Character.isDigit(name.charAt(6)))
+            isStandard = true;
+        return isStandard;
+    }
+
+    private int getSliceNumber(Roi roi, String label) {
+        int slice = roi!=null?roi.getPosition():-1;
+        if (slice==0)
+            slice=-1;
+        if (slice==-1)
+            slice = getSliceNumber(label);
+        return slice;
+    }
+
+    private int getSliceNumber(String label) {
+        int slice = -1;
+        if (label.length()>=14 && label.charAt(4)=='-' && label.charAt(9)=='-')
+            slice = (int) Tools.parseDouble(label.substring(0,4),-1);
+        else if (label.length()>=17 && label.charAt(5)=='-' && label.charAt(11)=='-')
+            slice = (int)Tools.parseDouble(label.substring(0,5),-1);
+        else if (label.length()>=20 && label.charAt(6)=='-' && label.charAt(13)=='-')
+            slice = (int)Tools.parseDouble(label.substring(0,6),-1);
+        return slice;
     }
 
     private void delete() {
@@ -450,6 +499,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     private void groupSelection() {
         String groupName;
 
+        // Create a dialog to get the group name from the user
         GenericDialog gd = new GenericDialog("Apply grouping");
         gd.addStringField("Group name: ", "");
         gd.showDialog();
@@ -457,14 +507,20 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         if (gd.wasOKed()) {
             groupName = gd.getNextString();
         } else {
-            groupName = "";
+            return; // Exit if the dialog is canceled
         }
 
-        IJ.setTool("polygon");
+        IJ.setTool("polygon"); // Switch to polygon tool for ROI selection
         WaitingUI waitingUI = new WaitingUI("Apply group", "Select template ROI");
 
         waitingUI.setTask(() -> {
-            Roi groupingRoi = IJ.getImage().getRoi();
+            ImagePlus imp = IJ.getImage(); // Get the current image
+            if (imp == null) {
+                IJ.error("No image open.");
+                return;
+            }
+
+            Roi groupingRoi = imp.getRoi(); // Get the currently selected ROI
             if (groupingRoi == null) {
                 IJ.error("ROI needed for cell grouping");
                 return;
@@ -472,14 +528,17 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
             new SelectionGrouping().applyGroup(cells, groupingRoi, groupName);
             groupingRoi.setStrokeColor(Utils.randomColor());
-            ImagePlus imp = IJ.getImage();
+
             Overlay overlay = imp.getOverlay();
             if (overlay == null) {
                 overlay = new Overlay();
                 imp.setOverlay(overlay);
             }
+            if (!overlay.contains(groupingRoi)) {
+                overlay.add(groupingRoi);
+            }
 
-            overlay.add(groupingRoi);
+            // Refresh the image display to show the updated overlay
             imp.updateAndDraw();
         });
     }
@@ -632,7 +691,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         IJ.log(message);
     }
 
-    ImagePlus getImage() {
+    private ImagePlus getImage() {
         ImagePlus imp = WindowManager.getCurrentImage();
         if (imp==null) {
             popupError("There are no images open.");
@@ -783,18 +842,22 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         if (imp == null) return;
 
         allGroupOverlay = new Overlay();
+
         for (CellData cd : cells) {
-            Roi groupRoi = cd.getGroupRoi();
-            if (groupRoi != null) {
-                groupRoi.setStrokeColor(Color.MAGENTA);
-                groupRoi.setStrokeWidth(2.0f);
-                allGroupOverlay.add(groupRoi);
+            for (String group : cd.getGroups()) {
+                Roi groupRoi = cd.getGroupRoi();
+                if (groupRoi != null) {
+                    groupRoi.setStrokeColor(Color.MAGENTA);
+                    groupRoi.setStrokeWidth(2.0f);
+                    allGroupOverlay.add(groupRoi);
+                }
             }
         }
 
         imp.setOverlay(allGroupOverlay);
         imp.updateAndDraw();
     }
+
 
     private void showAllCells() {
         ImagePlus imp = WindowManager.getCurrentImage();
@@ -833,8 +896,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         }
 
         allGroupOverlay = new Overlay();
-
-        // Loop through all cells, and if they belong to a group, display the group's ROI
         for (CellData cell : cells) {
             if (cell.getGroups() != null) {
                 Roi groupRoi = cell.getGroupRoi();
