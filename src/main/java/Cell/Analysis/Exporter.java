@@ -3,6 +3,7 @@ package Cell.Analysis;
 import Cell.UI.Popup;
 import Cell.UI.WaitingUI;
 import Cell.Utils.CellData;
+import Cell.Utils.GroupData;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -45,6 +46,7 @@ public class Exporter {
 
     ArrayList<ImagePlus> iterations = new ArrayList<ImagePlus>();
     ArrayList<CellData> cells;
+    ArrayList<GroupData> groups;
     ImagePlus imp;
     ImagePlus averageImp;
 
@@ -55,13 +57,12 @@ public class Exporter {
     private final String[] methods = new String[]{">3σ", "Peak Detection", "None"};
     private final String[] filters = new String[]{"Gaussian", "None"};
 
-
-
     public static final int FILTER_GAUSSIAN = 0;
     public static final int FILTER_NONE = 1;
 
-    public Exporter(ArrayList<CellData> cells){
+    public Exporter(ArrayList<CellData> cells, ArrayList<GroupData> groups){
         this.cells = cells;
+        this.groups = groups;
     }
 
     public void exportData() throws BackingStoreException {
@@ -163,6 +164,7 @@ public class Exporter {
         String name = imp.getTitle().trim();
 
         for (CellData cell : cells){
+            String group = getCellGroupName(cell);
             IJ.showProgress(progress, imp.getNSlices()*cells.size());
 
             rt_raw.incrementCounter();
@@ -173,6 +175,9 @@ public class Exporter {
 
             rt_raw.addValue("ROI", cell.getName());
             rt_stim.addValue("ROI", cell.getName());
+
+            rt_stim.addValue("Group",group);
+            rt_raw.addValue("Group", group);
 
             rt_raw.addValue("X", cell.getCenterX());
             rt_stim.addValue("X", cell.getCenterX());
@@ -196,6 +201,18 @@ public class Exporter {
 
         rt_raw.show("Signal results");
         rt_stim.show("Peak detection results");
+    }
+
+    private String getCellGroupName(CellData cell) {
+        StringBuilder groupName = new StringBuilder();
+
+        for (GroupData group: groups) {
+            if(group.getRoi().contains(cell.getCenterX(),cell.getCenterY())) {
+                groupName.append(group.name).append(":");
+            }
+        }
+
+        return groupName.toString();
     }
 
     public void setParameters() throws BackingStoreException {
@@ -260,9 +277,9 @@ public class Exporter {
         GenericDialog gd = new GenericDialog("Exporter Settings");
         gd.addMessage("All parameters are optional. Leave blank if excluded");
         gd.addNumericField("Iterations:", this.nIterations);
-        gd.addMessage("Input stimulus as frames points with a duration to search separated by a comma (ex. 60-63,120-123)\nThis will average relative intensity change from frame 60-63 and 120-123");
-        gd.addStringField("Stimulus time(s)", this.stimulusNamesInput);
-        gd.addStringField("Stimulus Names", this.stimulusPointsInput);
+        //gd.addMessage("Input stimulus as frames points with a duration to search separated by a comma (ex. 60-63,120-123)\nThis will average relative intensity change from frame 60-63 and 120-123");
+        //gd.addStringField("Stimulus time(s)", this.stimulusNamesInput);
+        //gd.addStringField("Stimulus Names", this.stimulusPointsInput);
         gd.addChoice("Response call method", methods, methods[this.method]);
         gd.addChoice("Filtering method", filters, filters[0]);
         //gd.addCheckbox("Show group plot", this.plot);

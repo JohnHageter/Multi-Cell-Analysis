@@ -1,43 +1,39 @@
 package Cell.Annotation;
 
 import Cell.Utils.CellData;
+import Cell.Utils.GroupData;
 import ij.IJ;
-import ij.gui.DialogListener;
-import ij.gui.GenericDialog;
 import ij.gui.Roi;
-
-import java.awt.*;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
-public class SelectionGrouping implements DialogListener {
-    private Map<String, Roi> roiMap = new HashMap<>();
 
-    public void applyGroup(ArrayList<CellData> cells, Roi groupingRoi, String groupName) {
+public class SelectionGrouping {
+    public GroupData applyGroup(ArrayList<CellData> cells, Roi groupingRoi, String groupName) {
+        if (groupName == null || groupName.isEmpty()) {
+            IJ.log("Group name is empty; no groups will be added.");
+            return null;
+        }
+
+        boolean groupAdded = false;
+        GroupData group = new GroupData(groupName);
+        group.setRoi((Roi) groupingRoi.clone());
+
         for (CellData cell : cells) {
             int centerX = cell.getCenterX();
             int centerY = cell.getCenterY();
-            if(groupingRoi.contains(centerX, centerY)) {
-                cell.addGroup(groupName);
-                cell.setGroupRoi(groupingRoi);
-                roiMap.put(groupName, groupingRoi);
+
+            if (groupingRoi.contains(centerX, centerY)) {
+                group.addCell(cell);
+                groupAdded = true;
             }
         }
 
-        if (roiMap.isEmpty()){
+        if (!groupAdded) {
+            IJ.log("No groups were added as no cells fell within the grouping ROI.");
+        } else if (group.cells.isEmpty()) {
             IJ.log("Empty groups will not be added to the cell manager.");
         }
+
+        return group;
     }
-
-    public Roi getRoiForGroup(String group) {
-        return roiMap.get(group);
-    }
-
-    @Override
-    public boolean dialogItemChanged(GenericDialog gd, AWTEvent e) {
-        return true;
-    }
-
-
 }

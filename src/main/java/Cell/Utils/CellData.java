@@ -11,6 +11,7 @@ public class CellData {
     private Roi groupRoi;
     private String name;
     private ArrayList<String> groups = new ArrayList<>();
+    private List<Roi> groupRois = new ArrayList<>();  // Store group ROIs here
     private int centerX;
     private int centerY;
     private double fnot;
@@ -19,7 +20,7 @@ public class CellData {
     public static CellData previousCellData;
     private int[] spikeTrain;
 
-    public CellData(Roi cell){
+    public CellData(Roi cell) {
         this.cellRoi = cell;
         this.name = cell.getName();
         this.centerX = (int) cell.getBounds().getCenterX();
@@ -29,12 +30,10 @@ public class CellData {
     public int getCenterX() {
         return centerX;
     }
-
     public int getCenterY() {
         return centerY;
     }
-
-    public String getName(){
+    public String getName() {
         return name;
     }
 
@@ -42,11 +41,11 @@ public class CellData {
         this.name = s;
     }
 
-    public ArrayList<String> getGroups(){
+    public ArrayList<String> getGroups() {
         return groups;
     }
 
-    public void addGroup(String group){
+    public void addGroup(String group) {
         if (!this.groups.contains(group)) {
             this.groups.add(group);
         }
@@ -54,25 +53,33 @@ public class CellData {
 
     public void removeGroup(String group) {
         this.groups.remove(group);
+        this.groupRois.remove(group);
     }
 
-    public void setGroupRoi(Roi groupRoi) {
-        this.groupRoi = groupRoi;
-    }
-
-    public Roi getGroupRoi() {
-        return groupRoi;
+    public void addGroupRoi(Roi groupRoi) {
+        if (!this.groupRois.contains(groupRoi)) {
+            this.groupRois.add(groupRoi);
+        }
     }
 
     public Roi getCellRoi() {
         return cellRoi;
     }
 
-    public void setRoi(Roi cellRoi){
+    public void setRoi(Roi cellRoi) {
         this.cellRoi = cellRoi;
         if (cellRoi != null) {
             cellRoi.setStrokeColor(Color.RED);
         }
+    }
+
+    public List<Roi> getGroupRois() {
+        return groupRois;
+    }
+
+    public List<Roi> getGroupRois(String group) {
+        Map<String, List<Roi>> groupRoiMap = new HashMap<>();
+        return groupRoiMap.getOrDefault(group, Collections.emptyList());
     }
 
     public String[] breakName(String delimiter) {
@@ -83,11 +90,11 @@ public class CellData {
         this.signal = signal;
     }
 
-    public double[] getSignal(){
+    public double[] getSignal() {
         return this.signal;
     }
 
-    public void setSpikeTrain(List<Integer> spikeTrain){
+    public void setSpikeTrain(List<Integer> spikeTrain) {
         int[] ret = new int[spikeTrain.size()];
         for (int i = 0; i < ret.length; i++) {
             ret[i] = spikeTrain.get(i);
@@ -99,15 +106,7 @@ public class CellData {
         return this.spikeTrain;
     }
 
-    public String printData() {
-        return "Cell Data{" +
-                "Name= " + this.name +
-                "Center X= " + this.centerX +
-                ", Center Y= " + this.centerY +
-                "}";
-    }
-
-    public void setSpikeTrain(int[] spikeTrain){
+    public void setSpikeTrain(int[] spikeTrain) {
         this.spikeTrain = spikeTrain;
     }
 }
