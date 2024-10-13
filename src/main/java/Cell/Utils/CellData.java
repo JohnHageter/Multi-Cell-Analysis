@@ -41,27 +41,6 @@ public class CellData {
         this.name = s;
     }
 
-    public ArrayList<String> getGroups() {
-        return groups;
-    }
-
-    public void addGroup(String group) {
-        if (!this.groups.contains(group)) {
-            this.groups.add(group);
-        }
-    }
-
-    public void removeGroup(String group) {
-        this.groups.remove(group);
-        this.groupRois.remove(group);
-    }
-
-    public void addGroupRoi(Roi groupRoi) {
-        if (!this.groupRois.contains(groupRoi)) {
-            this.groupRois.add(groupRoi);
-        }
-    }
-
     public Roi getCellRoi() {
         return cellRoi;
     }
@@ -71,19 +50,6 @@ public class CellData {
         if (cellRoi != null) {
             cellRoi.setStrokeColor(Color.RED);
         }
-    }
-
-    public List<Roi> getGroupRois() {
-        return groupRois;
-    }
-
-    public List<Roi> getGroupRois(String group) {
-        Map<String, List<Roi>> groupRoiMap = new HashMap<>();
-        return groupRoiMap.getOrDefault(group, Collections.emptyList());
-    }
-
-    public String[] breakName(String delimiter) {
-        return this.getName().split(delimiter);
     }
 
     public void setSignal(double[] signal) {
@@ -106,7 +72,4 @@ public class CellData {
         return this.spikeTrain;
     }
 
-    public void setSpikeTrain(int[] spikeTrain) {
-        this.spikeTrain = spikeTrain;
-    }
 }

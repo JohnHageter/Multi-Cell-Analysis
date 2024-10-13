@@ -207,8 +207,10 @@ public class Exporter {
         StringBuilder groupName = new StringBuilder();
 
         for (GroupData group: groups) {
-            if(group.getRoi().contains(cell.getCenterX(),cell.getCenterY())) {
-                groupName.append(group.name).append(":");
+            for (CellData groupCells : group.getCellsInGroup()) {
+                if (groupCells.getCellRoi() == cell.getCellRoi()) {
+                    groupName.append(group.name).append(":");
+                }
             }
         }
 

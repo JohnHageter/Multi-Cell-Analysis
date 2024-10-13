@@ -63,6 +63,13 @@ public class Math {
         return sequence;
     }
 
+    public static double calcDistance(double x1, double y1, double x2, double y2){
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        double squaredDistance = dx * dx + dy * dy;
+        return java.lang.Math.sqrt(squaredDistance);
+    }
+
     public static Integer strToInt(String str){
         try {
             return Integer.parseInt(str);
