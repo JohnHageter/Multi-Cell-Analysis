@@ -27,7 +27,6 @@ import ij.plugin.frame.RoiManager;
 import ij.util.Tools;
 
 import java.util.*;
-import java.util.List;
 import java.util.prefs.BackingStoreException;
 
 
@@ -165,6 +164,8 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     private void addMoreMenu() {
         pm = new JPopupMenu();
         addMenuItem("Set standard name");
+        addMenuItem("Cellpose ...");
+        addMenuItem("StarDist2D ...");
         addMenuItem("Test");
     }
 
@@ -256,6 +257,22 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 break;
             case "Set standard name":
                 nameCells();
+                break;
+            case "Cellpose ...":
+                try {
+                    IJ.run("Cellpose ...");
+                } catch (Exception error){
+                    IJ.log("BIOP, ImageScience, and Trackmate-Cellpose update sites must be enabled to run Cellpose.");
+                    IJ.log(error.getMessage());
+                }
+                break;
+            case "StarDist2D ...":
+                try {
+                    IJ.run("StarDist2D... (Advanced)");
+                } catch (Exception error){
+                    IJ.log("BIOP, ImageScience, StarDist, and CSBDeep update sites must be enabled to run StarDist2D.");
+                    IJ.log(error.getMessage());
+                }
                 break;
             case "Test":
                 //Test.testGaussian();
@@ -1112,12 +1129,12 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             if (cellRoi != null) {
                 cellRoi.setStrokeColor(Color.RED);
                 image.setRoi(cellRoi);
-                IJ.log("Set cell roi: " + cellRoi.getName() + " " + showingGroups);
+                //IJ.log("Set cell roi: " + cellRoi.getName() + " " + showingGroups);
                 image.updateAndDraw();
             }
         } else {
             int selectedIndex = list.getSelectedIndex();
-            IJ.log(String.valueOf(selectedIndex));
+            //IJ.log(String.valueOf(selectedIndex));
             if (selectedIndex < 0) {
                 return;
             }
@@ -1135,7 +1152,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                     overlay.add(cell.getCellRoi());
                 }
                 image.setOverlay(overlay);
-                IJ.log("Set group roi" + gd.name + "\n" + gd.getCellsInGroup());
+                //IJ.log("Set group roi" + gd.name + "\n" + gd.getCellsInGroup());
                 image.updateAndDraw();
             }
         }

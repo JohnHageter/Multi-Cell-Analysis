@@ -1,8 +1,10 @@
 package Cell.Utils;
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.process.ImageProcessor;
 
+import org.bytedeco.javacpp.FloatPointer;
 import org.bytedeco.javacpp.Loader;
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.javacpp.BytePointer;
@@ -18,10 +20,13 @@ public class ImageCV {
 
         if (ip.getBitDepth() == 8) {
             byte[] pixels = (byte[]) ip.getPixels();
-            return new Mat(height, width, CV_8UC1, new BytePointer(pixels));
+            return new Mat(height, width, CV_8U, new BytePointer(pixels));
         } else if (ip.getBitDepth() == 16) {
-            short[] pixels = (short[]) ip.getPixels();
-            return new Mat(height, width, CV_16UC1, new ShortPointer(pixels));
+            //TODO: Find a way for 16 bit images to be processed
+            IJ.error("Motion correction cannot be applied to 16-bit images.");
+        } else if (ip.getBitDepth() == 32){
+            float[] pixels = (float[]) ip.getPixels();
+            return new Mat(height, width, CV_32F, new FloatPointer(pixels));
         } else if (ip.getBitDepth() == 24) {
             Mat mat = new Mat(height, width, CV_8UC3);
             byte[] pixels = (byte[]) ip.getPixels();
@@ -46,8 +51,11 @@ public class ImageCV {
             byte[] pixels = (byte[]) ip.getPixels();
             return new Mat(height, width, CV_8UC1, new BytePointer(pixels));
         } else if (ip.getBitDepth() == 16) {
-            short[] pixels = (short[]) ip.getPixels();
-            return new Mat(height, width, CV_16UC1, new ShortPointer(pixels));
+            //TODO: Find a way for 16 bit images to be processed
+            IJ.error("Motion correction cannot be applied to 16-bit images");
+        } else if (ip.getBitDepth() == 32){
+            float[] pixels = (float[]) ip.getPixels();
+            return new Mat(height, width, CV_32F, new FloatPointer(pixels));
         } else if (ip.getBitDepth() == 24) {
             Mat mat = new Mat(height, width, CV_8UC3);
             byte[] pixels = (byte[]) ip.getPixels();

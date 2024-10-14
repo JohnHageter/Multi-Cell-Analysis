@@ -77,7 +77,7 @@ public class SelectionGrouping {
 
                     if (minCellIndex != -1) {
                         group.addCell(cells.get(minCellIndex));
-                        IJ.log("Added cell: " + cells.get(minCellIndex).getName());
+                        //IJ.log("Added cell: " + cells.get(minCellIndex).getName());
                         addedCells.add(minCellIndex);
                         groupAdded = true;
                     } else {

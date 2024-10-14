@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 
 public class Exporter {
@@ -37,7 +38,7 @@ public class Exporter {
     private String stimulusPointsInput = "";
     private String stimulusNamesInput = "";
     private int nIterations = 2;
-    private int method = 0;
+    private int detectionMethod = 0;
     private int filter = 0;
     private int lag = 30;
     private double threshold = 3.0;
@@ -54,11 +55,12 @@ public class Exporter {
     private ResultsTable rt_raw = new ResultsTable();
     private ResultsTable rt_stim = new ResultsTable();
 
-    private final String[] methods = new String[]{">3σ", "Peak Detection", "None"};
+    private final String[] detectionMethods = new String[]{">3σ", "Peak Detection", "None"};
     private final String[] filters = new String[]{"Gaussian", "None"};
 
     public static final int FILTER_GAUSSIAN = 0;
     public static final int FILTER_NONE = 1;
+    public static final int PEAK_LAGGING_WINDOW = 1;
 
     public Exporter(ArrayList<CellData> cells, ArrayList<GroupData> groups){
         this.cells = cells;
@@ -70,11 +72,15 @@ public class Exporter {
         setParameters();
         getIterations();
 
+        if(this.cells.isEmpty()){
+            return;
+        }
+
         int stackSize = iterations.get(0).getStackSize();
 
         ImageStack imp = new ImageStack();
         for (int i = 1; i <= stackSize; i++){
-            ImageProcessor ip = averageIterations();
+            ImageProcessor ip = averageIterations(i);
             imp.addSlice(ip);
         }
 
@@ -86,31 +92,30 @@ public class Exporter {
         getResultsTable();
     }
 
-    public ImageProcessor averageIterations() {
+    public ImageProcessor averageIterations(int sliceIndex) {
         int width = iterations.get(0).getWidth();
         int height = iterations.get(0).getHeight();
 
-        ImageProcessor rp = iterations.get(0).getProcessor().duplicate();
+        ImageProcessor rp = iterations.get(0).getStack().getProcessor(sliceIndex).duplicate();
         rp.multiply(0);
 
-        for (ImagePlus imp : iterations) {
-            ImageProcessor ip = imp.getProcessor();
-            if (ip.getWidth() != width || ip.getHeight() != height) {
-                new Popup("Error", "Iterations must be the same dimensions").showPopup();
-                return null;
-            }
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    float currentValue = rp.getf(x, y);
+        IntStream.range(0, height).parallel().forEach(y -> {
+            for (int x = 0; x < width; x++) {
+                float currentValue = rp.getf(x, y);
+                for (ImagePlus imp : iterations) {
+                    ImageProcessor ip = imp.getStack().getProcessor(sliceIndex);
                     float newValue = ip.getf(x, y);
-                    rp.setf(x, y, currentValue + newValue);
+                    currentValue += newValue;
                 }
+                rp.setf(x, y, currentValue);
             }
-        }
+        });
+
         rp.multiply(1.0 / iterations.size());
 
         return rp;
     }
+
 
     public void filterSignal(){
         int nSlices = imp.getNSlices();
@@ -119,9 +124,9 @@ public class Exporter {
         int cellIndex = 0;
         for (CellData cell : cells) {
             double[] signal = new double[nSlices];
-            IJ.log("Slices "+ nSlices);
+            //IJ.log("Slices "+ nSlices);
             for (int i = 1; i <= nSlices; i++) {
-                IJ.log(Integer.toString(i));
+                //IJ.log(Integer.toString(i));
                 imp.setSlice(i);
                 ImageProcessor ip = imp.getProcessor();
                 ip.setRoi(cell.getCellRoi());
@@ -188,8 +193,8 @@ public class Exporter {
             rt_raw.addValue("Filter", filters[this.filter]);
             rt_stim.addValue("Filter", filters[this.filter]);
 
-            rt_raw.addValue("Detection.Method", methods[this.method]);
-            rt_stim.addValue("Detection.Method", methods[this.method]);
+            rt_raw.addValue("Detection.Method", detectionMethods[this.detectionMethod]);
+            rt_stim.addValue("Detection.Method", detectionMethods[this.detectionMethod]);
 
             for (int i = 1; i <= imp.getNSlices(); i++){
                 rt_raw.addValue("Slice_" + i, cell.getSignal()[i-1]);
@@ -222,7 +227,7 @@ public class Exporter {
         this.nIterations = prefs.getInt(PREF_ITERATIONS, this.nIterations);
         this.stimulusPointsInput = prefs.get(PREF_STIMULUS, this.stimulusPointsInput);
         this.stimulusNamesInput = prefs.get(PREF_STIMULUS_NAMES, this.stimulusNamesInput);
-        this.method = prefs.getInt(PREF_METHOD, this.method);
+        this.detectionMethod = prefs.getInt(PREF_METHOD, this.detectionMethod);
         this.filter = prefs.getInt(PREF_FILTER, this.filter);
 
         GenericDialog gd = getGenericDialog();
@@ -231,14 +236,37 @@ public class Exporter {
             this.nIterations = (int) gd.getNextNumber();
             this.stimulusNamesInput = gd.getNextString();
             this.stimulusPointsInput = gd.getNextString();
-            this.method = gd.getNextChoiceIndex();
+            this.detectionMethod = gd.getNextChoiceIndex();
             this.filter = gd.getNextChoiceIndex();
+
+            if(this.detectionMethod == PEAK_LAGGING_WINDOW) {
+                this.lag = prefs.getInt(PREF_LAG, this.lag);
+                this.threshold = prefs.getDouble(PREF_THRESHOLD, this.threshold);
+                this.influence = prefs.getDouble(PREF_INFLUENCE, this.influence);
+
+                GenericDialog gd_peak = new GenericDialog("Peak detection");
+                gd_peak.addMessage("Input parameters for peak detection");
+                gd_peak.addNumericField("Lag: ", this.lag);
+                gd_peak.addNumericField("Threshold: ", this.threshold);
+                gd_peak.addNumericField("Influence: ", this.influence);
+                gd_peak.showDialog();
+
+                if(gd_peak.wasOKed()) {
+                    this.lag = (int)gd_peak.getNextNumber();
+                    this.threshold = gd_peak.getNextNumber();
+                    this.influence = gd_peak.getNextNumber();
+
+                    prefs.putInt(PREF_LAG, this.lag);
+                    prefs.putDouble(PREF_THRESHOLD, this.threshold);
+                    prefs.putDouble(PREF_INFLUENCE, this.influence);
+                }
+            }
 
             prefs.clear();
             prefs.putInt(PREF_ITERATIONS, this.nIterations);
             prefs.put(PREF_STIMULUS, this.stimulusPointsInput);
             prefs.put(PREF_STIMULUS_NAMES, this.stimulusNamesInput);
-            prefs.putInt(PREF_METHOD, this.method);
+            prefs.putInt(PREF_METHOD, this.detectionMethod);
             prefs.putInt(PREF_FILTER, this.filter);
         }
     }
@@ -279,12 +307,8 @@ public class Exporter {
         GenericDialog gd = new GenericDialog("Exporter Settings");
         gd.addMessage("All parameters are optional. Leave blank if excluded");
         gd.addNumericField("Iterations:", this.nIterations);
-        //gd.addMessage("Input stimulus as frames points with a duration to search separated by a comma (ex. 60-63,120-123)\nThis will average relative intensity change from frame 60-63 and 120-123");
-        //gd.addStringField("Stimulus time(s)", this.stimulusNamesInput);
-        //gd.addStringField("Stimulus Names", this.stimulusPointsInput);
-        gd.addChoice("Response call method", methods, methods[this.method]);
+        gd.addChoice("Response call method", detectionMethods, detectionMethods[this.detectionMethod]);
         gd.addChoice("Filtering method", filters, filters[0]);
-        //gd.addCheckbox("Show group plot", this.plot);
         gd.showDialog();
         return gd;
     }
