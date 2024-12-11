@@ -25,6 +25,9 @@ public class MotionCorrection {
 
     FloatProcessor result;
 
+    private final boolean DEBUG = true;
+    ImageStack crossCorrelationStack = new ImageStack();
+
     public MotionCorrection(Roi template){
         this.template = template;
     }
@@ -56,6 +59,12 @@ public class MotionCorrection {
 
             ImagePlus ret = new ImagePlus(imp.getTitle() + "_REGISTERED", registered);
             ret.show();
+
+            if(DEBUG){
+                ImagePlus correlationImp = new ImagePlus(imp.getTitle() + "_Cross_Correlation", crossCorrelationStack);
+                correlationImp.show();
+            }
+
             IJ.showProgress(1.0);
         }).start();
     }
@@ -67,7 +76,11 @@ public class MotionCorrection {
         target.resetRoi();
 
         result = TemplateMatching.doMatch(target.crop(), reference);
-        assert result != null;
+        if(DEBUG){
+            crossCorrelationStack.addSlice(result.duplicate());
+        }
+
+        //assert result != null;
         dxdy = findMax(result, 0);
 
 
@@ -98,6 +111,11 @@ public class MotionCorrection {
 
         registered.addSlice(target.duplicate());
         registered.getProcessor(slice).translate(disX,disY);
+
+        if(DEBUG){
+            IJ.log("dX: " + disX + ", " + "dY:" + disY);
+        }
+
     }
 
     public static int[] findMax(ImageProcessor ip, int sW) {

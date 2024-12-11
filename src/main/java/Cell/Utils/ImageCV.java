@@ -22,6 +22,8 @@ public class ImageCV {
             byte[] pixels = (byte[]) ip.getPixels();
             return new Mat(height, width, CV_8U, new BytePointer(pixels));
         } else if (ip.getBitDepth() == 16) {
+//            short[] pixels = (short[]) ip.getPixels();
+//            return new Mat(height, width, CV_16U, new ShortPointer(pixels));
             //TODO: Find a way for 16 bit images to be processed
             IJ.error("Motion correction cannot be applied to 16-bit images.");
         } else if (ip.getBitDepth() == 32){
@@ -51,8 +53,10 @@ public class ImageCV {
             byte[] pixels = (byte[]) ip.getPixels();
             return new Mat(height, width, CV_8UC1, new BytePointer(pixels));
         } else if (ip.getBitDepth() == 16) {
+//            short[] pixels = (short[]) ip.getPixels();
+//            return new Mat(height, width, CV_16U, new ShortPointer(pixels));
             //TODO: Find a way for 16 bit images to be processed
-            IJ.error("Motion correction cannot be applied to 16-bit images");
+            IJ.error("Motion correction cannot be applied to 16-bit images.");
         } else if (ip.getBitDepth() == 32){
             float[] pixels = (float[]) ip.getPixels();
             return new Mat(height, width, CV_32F, new FloatPointer(pixels));
