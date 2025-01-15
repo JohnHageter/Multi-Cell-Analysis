@@ -23,6 +23,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.*;
+import ij.plugin.frame.PlugInFrame;
 import ij.plugin.frame.RoiManager;
 import ij.util.Tools;
 
@@ -31,7 +32,7 @@ import java.util.prefs.BackingStoreException;
 
 
 public class CellManager extends JFrame implements ActionListener, ItemListener, MouseListener, MouseWheelListener, ListSelectionListener, Iterable<Object> {
-    private static CellManager instance;
+    private static JFrame instance;
     private JList<String> list;
     private DefaultListModel<String> listModel;
     private int nButtons = 0;
@@ -55,11 +56,13 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     public CellManager() {
         super("Cell Manager");
         if (instance != null) {
-            instance.toFront();
+            IJ.log("Instance already exists, bringing it to front.");
+            WindowManager.toFront(instance);
             return;
         }
 
         instance = this;
+        IJ.log("Creating new CellManager instance.");
         list = new JList<>();
         listModel = new DefaultListModel<>();
         list.setModel(listModel);
@@ -67,25 +70,22 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     }
 
     public static CellManager getInstance() {
-        if (instance == null){
+        if (instance == null) {
             instance = new CellManager();
         }
-        return instance;
+        return (CellManager) instance;
     }
 
-    public static void showCellManager() {
-        CellManager manager = getInstance();
-        manager.initializeUI();
-        if (!manager.isVisible()) {
-            manager.setVisible(true);
-        }
-        manager.toFront();
-    }
-
-    private void initializeUI() {
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+    private void showCellManager() {
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        panel.removeAll();
+        panel.revalidate();
+        panel.repaint();
+        IJ.log("Creating UI");
+        addKeyListener(IJ.getInstance());
         addMouseListener(this);
         addMouseWheelListener(this);
+        WindowManager.addWindow(this);
 
         panel.setLayout(layout);
 
@@ -145,6 +145,8 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 panel.repaint();
             }
         });
+
+        setVisible(true);
     }
 
     private void addButton(String name, int gridx, int gridy, int gridwidth, int gridheight) {
@@ -259,12 +261,14 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 nameCells();
                 break;
             case "Cellpose ...":
-                try {
-                    IJ.run("Cellpose ...");
-                } catch (Exception error){
-                    IJ.log("BIOP, ImageScience, and Trackmate-Cellpose update sites must be enabled to run Cellpose.");
-                    IJ.log(error.getMessage());
-                }
+                new Thread(() -> {
+                    try {
+                        new CellposeLauncher().runCellpose();
+                    } catch (Exception error) {
+                        IJ.log("BIOP, ImageScience, and Trackmate-Cellpose update sites must be enabled to run Cellpose.");
+                        IJ.log(error.getMessage());
+                    }
+                }).start();
                 break;
             case "StarDist2D ...":
                 try {
@@ -1098,13 +1102,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         }
     }
 
-    public void processWindowEvent(WindowEvent e) {
-        super.processWindowEvent(e);
-        if (e.getID() == WindowEvent.WINDOW_CLOSING) {
-            instance = null;
-        }
-    }
-
     @Override
     public void valueChanged(ListSelectionEvent e) {
         if (e.getValueIsAdjusting()) {
@@ -1158,4 +1155,13 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         }
     }
 
+    public void processWindowEvent(WindowEvent e) {
+        super.processWindowEvent(e);
+        if (e.getID()==WindowEvent.WINDOW_CLOSING) {
+            dispose();
+            WindowManager.removeWindow(this);
+            instance = null;
+            IJ.log("Dispose and instance == null");
+        }
+    }
 }
