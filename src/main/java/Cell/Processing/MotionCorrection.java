@@ -25,7 +25,7 @@ public class MotionCorrection {
 
     FloatProcessor result;
 
-    private final boolean DEBUG = true;
+    private final boolean DEBUG = false;
     ImageStack crossCorrelationStack = new ImageStack();
 
     public MotionCorrection(Roi template){

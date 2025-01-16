@@ -13,14 +13,11 @@ The main module of MCA is the cell manager which is heavily inspired by ImageJ's
 
 
 ## Installation  
-The MCA Plugin can currently be installed by downlownding the latest Jar from the releases tab. MCA uses the [`IJ-OpenCV-Plugins`](https://github.com/joheras/IJ-OpenCV) for working between ImageJ and OpenCV. We also use the ImageJ plugin for [`StarDist`](https://sites.imagej.net/StarDist/). Both of these required plugins can be installed by updating ImageJ and selecting their respective update sites along with [`CSBDeep`](https://sites.imagej.net/CSBDeep/) which is required for StarDist. This can be completed by following these steps:  
-1. Start Fiji
-2. Select `Help>Update...` from the menu bar.
-3. Wait for Fiji to update and then click on `Manage update sites`.
-4. Search for the `CSBDeep`, `StarDist`, and `IJ-OpenCV-Plugins` and enable the checkbox next to the sites.
-5. Click `New update site` and add the Multi-Cell-Analysis update site https://sites.imagej.net/MultiCellPlugins
-6. Click the `Close` button and then `Apply changes` to install the required plugins and dependencies.
-7. The Cell manager can be accessed from `Analyze>> Tools>> Cell Manager`.  
+The MCA Plugin can currently be installed by downlownding the latest Jar from the releases tab and placing the .jar file in the plugins folder within ImageJ.  
+  
+You can also install MCA through the ImageJ update site with the following steps:  
+1. Run ImageJ Update. `Help >> Update...`
+2. In the ImageJ updater select "Add Unlisted Site"
    
 [^1]: Based on ImageJ implementation of  OpenCV Template Matching algorithm. [Template Matching](https://sites.google.com/site/qingzongtseng/template-matching-ij-plugin)
 [^2]: Uses the [StartDist](https://github.com/stardist/stardist-imagej)-ImageJ plugin for cell segmentation  

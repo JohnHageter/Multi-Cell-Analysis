@@ -23,7 +23,6 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.*;
-import ij.plugin.frame.PlugInFrame;
 import ij.plugin.frame.RoiManager;
 import ij.util.Tools;
 
@@ -56,13 +55,13 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     public CellManager() {
         super("Cell Manager");
         if (instance != null) {
-            IJ.log("Instance already exists, bringing it to front.");
+            //IJ.log("Instance already exists, bringing it to front.");
             WindowManager.toFront(instance);
             return;
         }
 
         instance = this;
-        IJ.log("Creating new CellManager instance.");
+        //IJ.log("Creating new CellManager instance.");
         list = new JList<>();
         listModel = new DefaultListModel<>();
         list.setModel(listModel);
@@ -81,7 +80,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         panel.removeAll();
         panel.revalidate();
         panel.repaint();
-        IJ.log("Creating UI");
+        //IJ.log("Creating UI");
         addKeyListener(IJ.getInstance());
         addMouseListener(this);
         addMouseWheelListener(this);
@@ -230,6 +229,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 }
                 break;
             case "Convert stack to DF/F":
+
                 convertStackToDF();
                 break;
             case "Load from ROI Manager":
@@ -263,7 +263,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             case "Cellpose ...":
                 new Thread(() -> {
                     try {
-                        new CellposeLauncher().runCellpose();
+                        IJ.run("Cellpose ...");
                     } catch (Exception error) {
                         IJ.log("BIOP, ImageScience, and Trackmate-Cellpose update sites must be enabled to run Cellpose.");
                         IJ.log(error.getMessage());
@@ -714,6 +714,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     private void popupError(String s) {
         new Popup("Error", s).showPopup();
     }
+
     private void popupWarning(String s) {
         new Popup("Warning", s).showPopup();
     }
@@ -729,9 +730,15 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         GenericDialog gd = new GenericDialog("Fluorescence conversion");
         gd.addMessage("Input baseline (ex. 0-60)");
         gd.addStringField("Baseline: ", "");
+        gd.addCheckbox("Subtract background", true);
         gd.showDialog();
 
         if (gd.wasOKed()) {
+            if (gd.getNextBoolean()) {
+                IJ.run("Subtract Background...");
+            }
+
+
             String input = gd.getNextString().trim();
 
             if (!input.contains("-")) {
@@ -1161,7 +1168,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             dispose();
             WindowManager.removeWindow(this);
             instance = null;
-            IJ.log("Dispose and instance == null");
+            //IJ.log("Dispose and instance == null");
         }
     }
 }

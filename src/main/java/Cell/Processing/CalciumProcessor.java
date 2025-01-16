@@ -1,5 +1,6 @@
 package Cell.Processing;
 
+import ij.IJ;
 import ij.ImagePlus;
 import Cell.Utils.Utils;
 import ij.ImageStack;
@@ -10,6 +11,7 @@ public class CalciumProcessor {
     public CalciumProcessor() {}
 
     public void convertToDF(ImagePlus imp, int baselineBegin, int baselineEnd) {
+
         if (!Utils.isStack(imp)) {
             throw new IllegalArgumentException("Input image must be a stack.");
         }
