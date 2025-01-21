@@ -1,23 +1,13 @@
-# Multi-Cell-Analysis ImageJ/Fiji Plugin
-<div style="display: flex; align-items: flex-start; gap: 15px;">
-  <div style="margin: 0;">
-    <p style="margin: 0; line-height: 1.5;">
-      MCA is a functional imaging analysis toolkit for ImageJ. The plugin is intended for use with confocal or multiphoton calcium imaging datasets.
-    </p>
-    <p></p>
-    <p></p>
-    <p>MCA has the following functions available for use.</p>
-    <ul style="margin-top: 10px; padding-left: 20px; line-height: 1.5;">
-      <li>Motion correction [^1]</li>
-      <li>Relative fluorescence stack conversion</li>
-      <li>Polygonal/point selection and grouping of ROIs</li>
-      <li>Gaussian signal filtering</li>
-      <li>Peak detection</li>
-      <li>Cell Segmentation[^2]</li>
-    </ul>
-  </div>
-  <img src="./Logo.png" alt="Logo" width="200" style="margin: 0;" />
-</div> 
+# Multi-Cell-Analysis ImageJ/Fiji Plugin <img src="./Logo.png" width="200" title="MCA" alt="Multi-Cell-Analysis" align="right" vspace = "50">
+<p>MCA is a functional imaging analysis toolkit for ImageJ. The plugin is intended for use with confocal or multiphoton calcium imaging datasets.</p>
+
+MCA has the following functions available for use:  
+- Motion correction [^1]
+- Relative fluorescence stack conversion
+- Polygonal/point selection and grouping of ROIs
+- Gaussian signal filtering
+- Peak detection
+- Cell Segmentation[^2]  
   
 The main module of MCA is the cell manager which is heavily inspired by ImageJ's built in ROI Manager. The cell manager is intended to add functionality specific for functional imaging datasets to ImageJ as well as improved visualization of cellular ROIs and grouping ROIs. 
 
