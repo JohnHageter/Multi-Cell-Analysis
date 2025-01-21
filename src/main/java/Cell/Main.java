@@ -1,10 +1,8 @@
 package Cell;
 
-
 import ij.ImageJ;
 import ij.plugin.PlugIn;
 import Cell.Frame.CellManager;
-
 import javax.swing.*;
 
 public class Main implements PlugIn {
@@ -12,7 +10,6 @@ public class Main implements PlugIn {
     public static void main(String[] args){
         new ImageJ();
         new CellManager();
-        //new CellManagerHotkey().run("");
     }
 
     @Override
