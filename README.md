@@ -17,7 +17,7 @@ The MCA Plugin can currently be installed by downlownding the latest Jar from th
   
 You can also install MCA through the ImageJ update site with the following steps:  
 1. Run ImageJ Update. `Help >> Update...`
-2. In the ImageJ updater select "Add Unlisted Site" and add https://sites.imagej.net/Multi-Cell-Plugins  
+2. In the ImageJ updater select "Add Unlisted Site" and add https://sites.imagej.net/MultiCellPlugins  
 3. Continue with update and restart ImageJ
    
 [^1]: Based on ImageJ implementation of  OpenCV Template Matching algorithm. [Template Matching](https://sites.google.com/site/qingzongtseng/template-matching-ij-plugin)
