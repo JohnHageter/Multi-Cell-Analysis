@@ -958,7 +958,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         for (CellData cell : cells) {
             Roi cellRoi = cell.getCellRoi();
             if (cellRoi != null) {
-                cellRoi.setStrokeColor(Color.RED);
+                cellRoi.setStrokeColor(Color.YELLOW);
                 allCellOverlay.add(cellRoi);
             }
         }
@@ -1119,7 +1119,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             ImagePlus image = WindowManager.getCurrentImage();
             Roi cellRoi = cd.getCellRoi();
             if (cellRoi != null) {
-                cellRoi.setStrokeColor(Color.RED);
+                cellRoi.setStrokeColor(Color.YELLOW);
                 image.setRoi(cellRoi);
                 //IJ.log("Set cell roi: " + cellRoi.getName() + " " + showingGroups);
                 image.updateAndDraw();

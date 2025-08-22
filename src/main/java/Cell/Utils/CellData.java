@@ -3,7 +3,6 @@ package Cell.Utils;
 import ij.gui.Roi;
 
 import java.awt.*;
-import java.util.List;
 
 public class CellData {
     private Roi cellRoi;
@@ -53,12 +52,8 @@ public class CellData {
         return this.signal;
     }
 
-    public void setSpikeTrain(List<Integer> spikeTrain) {
-        int[] ret = new int[spikeTrain.size()];
-        for (int i = 0; i < ret.length; i++) {
-            ret[i] = spikeTrain.get(i);
-        }
-        this.spikeTrain = ret;
+    public void setSpikeTrain(int[] spikeTrain) {
+        this.spikeTrain = spikeTrain;
     }
 
     public int[] getSpikeTrain() {

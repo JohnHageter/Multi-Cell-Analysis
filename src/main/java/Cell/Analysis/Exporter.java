@@ -8,22 +8,27 @@ import ij.ImagePlus;
 import ij.ImageStack;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
+import ij.gui.Roi;
 import ij.measure.ResultsTable;
+import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
-import ij.process.ImageStatistics;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.awt.*;
+import java.io.*;
+import java.util.*;
 import java.util.List;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-
+/**
+ * Optimized Exporter:
+ * - Avoids repeated ROI statistics by averaging pixel values directly via precomputed pixel indices.
+ * - Averages iteration stacks using raw array math (no per-pixel getf/setf calls).
+ * - Writes CSVs quickly and opens them asynchronously as ResultsTables.
+ * - Reduces UI/update overhead and unnecessary allocations.
+ */
 public class Exporter {
-    //private static final String PREF_SAVE = "Save";
     private static final String PREF_ITERATIONS = "Iterations";
     private static final String PREF_STIMULUS = "Stimulus";
     private static final String PREF_STIMULUS_NAMES = "Stimpoint";
@@ -42,15 +47,11 @@ public class Exporter {
     private double threshold = 3.0;
     private double influence = 0.25;
 
-    ArrayList<ImagePlus> iterations = new ArrayList<ImagePlus>();
-    ArrayList<CellData> cells;
-    ArrayList<GroupData> groups;
-    ImagePlus imp;
-    ImagePlus averageImp;
-
-
-    private final ResultsTable rt_raw = new ResultsTable();
-    private final ResultsTable rt_stim = new ResultsTable();
+    private final ArrayList<ImagePlus> iterations = new ArrayList<>();
+    private final ArrayList<CellData> cells;
+    private final ArrayList<GroupData> groups;
+    private ImagePlus imp;
+    private ImagePlus averageImp;
 
     private final String[] detectionMethods = new String[]{"Peak Detection", "None"};
     private final String[] filters = new String[]{"Gaussian", "None"};
@@ -59,9 +60,13 @@ public class Exporter {
     public static final int FILTER_NONE = -1;
     public static final int PEAK_LAGGING_WINDOW = 1;
 
-    public Exporter(ArrayList<CellData> cells, ArrayList<GroupData> groups){
+    private final Map<CellData, int[]> pixelIndexCache = new IdentityHashMap<>();
+    private final Map<Roi, String> groupNameByRoi = new IdentityHashMap<>();
+
+    public Exporter(ArrayList<CellData> cells, ArrayList<GroupData> groups) {
         this.cells = cells;
         this.groups = groups;
+        buildGroupCache();
     }
 
     public void exportData() throws BackingStoreException {
@@ -69,164 +74,272 @@ public class Exporter {
         setParameters();
         getIterations();
 
-        if(this.cells.isEmpty()){
-            return;
-        }
+        if (this.cells == null || this.cells.isEmpty()) return;
 
-        int stackSize = iterations.get(0).getStackSize();
+        final int stackSize = iterations.get(0).getStackSize();
 
         new Thread(() -> {
-            ImageStack imp = new ImageStack();
-            for (int i = 1; i <= stackSize; i++){
-                ImageProcessor ip = averageIterations(i);
-                imp.addSlice(ip);
+            ImageStack outStack = new ImageStack(iterations.get(0).getWidth(), iterations.get(0).getHeight());
+            for (int s = 1; s <= stackSize; s++) {
+                FloatProcessor fp = averageIterationsFast(s);
+                outStack.addSlice(fp);
+                if (s % 10 == 0) IJ.showProgress(s, stackSize);
             }
-            averageImp = new ImagePlus(iterations.get(0).getTitle() + "_AVG", imp);
+            averageImp = new ImagePlus(iterations.get(0).getTitle() + "_AVG", outStack);
             averageImp.show();
-        }).start();
+        }, "AVG-Iterations").start();
 
-        filterSignal();
-        detectPeaks();
-        new Thread(this::getResultsTable).start();
+        filterSignalFast();
+        detectPeaksFast();
+        new Thread(this::getResultsTable, "Write-Results").start();
     }
 
-    public ImageProcessor averageIterations(int sliceIndex) {
+
+    private FloatProcessor averageIterationsFast(int sliceIndex) {
         int width = iterations.get(0).getWidth();
         int height = iterations.get(0).getHeight();
+        int nPix = width * height;
+        int nIter = iterations.size();
 
-        ImageProcessor rp = iterations.get(0).getStack().getProcessor(sliceIndex).duplicate();
-        rp.multiply(0);
+        float[] avg = new float[nPix];
 
-        IntStream.range(0, height).parallel().forEach(y -> {
-            for (int x = 0; x < width; x++) {
-                float currentValue = rp.getf(x, y);
-                for (ImagePlus imp : iterations) {
-                    ImageProcessor ip = imp.getStack().getProcessor(sliceIndex);
-                    float newValue = ip.getf(x, y);
-                    currentValue += newValue;
+        for (ImagePlus im : iterations) {
+            Object pixels = im.getStack().getProcessor(sliceIndex).getPixels();
+
+            if (pixels instanceof byte[]) {
+                byte[] px = (byte[]) pixels;
+                for (int i = 0; i < nPix; i++) {
+                    avg[i] += (px[i] & 0xff);
                 }
-                rp.setf(x, y, currentValue);
+            } else if (pixels instanceof float[]) {
+                float[] px = (float[]) pixels;
+                for (int i = 0; i < nPix; i++) {
+                    avg[i] += px[i];
+                }
+            } else {
+                throw new IllegalArgumentException("Unsupported pixel type: " + pixels.getClass());
             }
-        });
+        }
 
-        rp.multiply(1.0 / iterations.size());
+        for (int i = 0; i < nPix; i++) {
+            avg[i] /= nIter;
+        }
 
-        return rp;
+        return new FloatProcessor(width, height, avg);
     }
 
-    public void filterSignal(){
-        int nSlices = imp.getNSlices();
+    private void filterSignalFast() {
+        final int nSlices = imp.getNSlices();
         IJ.showStatus("Filtering signal...");
-        IJ.showProgress(0, (int) cells.size()*nSlices);
-        int cellIndex = 0;
+        IJ.showProgress(0, Math.max(1, cells.size()));
+        precomputeAllPixelIndices();
+
+        int row = 0;
         for (CellData cell : cells) {
             double[] signal = new double[nSlices];
-            //IJ.log("Slices "+ nSlices);
-            for (int i = 1; i <= nSlices; i++) {
-                //IJ.log(Integer.toString(i));
-                imp.setSlice(i);
-                ImageProcessor ip = imp.getProcessor();
-                ip.setRoi(cell.getCellRoi());
-                ImageStatistics stats = ip.getStatistics();
-                signal[i-1] = stats.mean;
-            }
-            IJ.showProgress(cellIndex,cells.size()*nSlices);
+            final int[] idx = pixelIndexCache.get(cell);
+            final int roiCount = idx.length;
 
-            if(this.filter == FILTER_GAUSSIAN) {
+            for (int s = 1; s <= nSlices; s++) {
+                Object pixels = imp.getStack().getProcessor(s).getPixels();
+
+                double sum = 0;
+                if (pixels instanceof byte[]) {
+                    byte[] px = (byte[]) pixels;
+                    for (int p : idx) sum += (px[p] & 0xff);
+                } else if (pixels instanceof float[]) {
+                    float[] px = (float[]) pixels;
+                    for (int p : idx) sum += px[p];
+                } else {
+                    throw new IllegalArgumentException("Unsupported pixel type: " + pixels.getClass());
+                }
+
+                signal[s - 1] = sum / roiCount;
+            }
+
+            if (this.filter == FILTER_GAUSSIAN) {
                 double[] fsignal = SignalFilter.gaussianFilter(signal, 0.3);
                 cell.setSignal(fsignal);
             } else {
                 cell.setSignal(signal);
             }
 
-            cellIndex++;
+            row++;
+            if (row % 25 == 0) {
+                IJ.showProgress(row, cells.size());
+            }
         }
     }
 
-    public void detectPeaks() {
-        int nSlices = imp.getNSlices();;
+
+    private void precomputeAllPixelIndices() {
+        final int w = imp.getWidth();
+        final int h = imp.getHeight();
+        for (CellData cell : cells) {
+            if (!pixelIndexCache.containsKey(cell)) {
+                Roi roi = cell.getCellRoi();
+                if (roi == null) {
+                    pixelIndexCache.put(cell, new int[0]);
+                    continue;
+                }
+                Rectangle b = roi.getBounds();
+                java.util.ArrayList<Integer> list = new java.util.ArrayList<>(b.width * b.height);
+                for (int y = Math.max(0, b.y); y < Math.min(h, b.y + b.height); y++) {
+                    for (int x = Math.max(0, b.x); x < Math.min(w, b.x + b.width); x++) {
+                        if (roi.contains(x, y)) {
+                            list.add(y * w + x);
+                        }
+                    }
+                }
+                int[] idx = new int[list.size()];
+                for (int i = 0; i < list.size(); i++) idx[i] = list.get(i);
+                pixelIndexCache.put(cell, idx);
+            }
+        }
+    }
+
+
+    private void detectPeaksFast() {
+        final int nSlices = imp.getNSlices();
         IJ.showStatus("Detecting peaks...");
-        IJ.showProgress(0, (int) cells.size()*nSlices);
-        for (CellData cell : cells){
-            List<Double> signal = Arrays.stream(cell.getSignal())
-                    .boxed()
-                    .collect(Collectors.toList());
+        IJ.showProgress(0, Math.max(1, cells.size()));
+
+        int row = 0;
+        for (CellData cell : cells) {
+            double[] sig = cell.getSignal();
+            java.util.ArrayList<Double> asList = new java.util.ArrayList<>(sig.length);
+            for (double v : sig) asList.add(v);
 
             SignalDetector sd = new SignalDetector();
-            HashMap<String, List> map = sd.peakLaggingWindow(signal, lag, threshold, influence);
-            cell.setSpikeTrain(map.get("signals"));
-        }
+            Map<String, List> map = sd.peakLaggingWindow(asList, lag, threshold, influence);
 
+            List<?> spikesList = map.get("signals");
+            int[] spikes = new int[nSlices];
+            for (int i = 0; i < spikes.length && i < spikesList.size(); i++) {
+                Object o = spikesList.get(i);
+                spikes[i] = (o instanceof Number) ? ((Number) o).intValue() : 0;
+            }
+            cell.setSpikeTrain(spikes);
+
+            row++;
+            if (row % 50 == 0) IJ.showProgress(row, cells.size());
+        }
     }
 
-    public void getResultsTable(){
-        if(imp.getTitle().contains("_DELTAF")){
-            boolean convertedFormat = true;
-        } else {
+
+    public void getResultsTable() {
+        if (!imp.getTitle().contains("_DELTAF")) {
             IJ.log("WARNING: Image series may not be in converted Delta F/F format");
         }
 
         IJ.showStatus("Generating results...");
-        IJ.showProgress(0, imp.getNSlices()*cells.size());
-        int progress = 0;
 
+        int nSlices = imp.getNSlices();
+        int totalCells = cells.size();
+        String filterName = filters[Math.max(0, Math.min(this.filter, filters.length - 1))];
+        String detectionMethodName = detectionMethods[Math.max(0, Math.min(this.detectionMethod, detectionMethods.length - 1))];
         String name = imp.getTitle().trim();
 
-        for (CellData cell : cells){
-            String group = getCellGroupName(cell);
-            IJ.showProgress(progress, imp.getNSlices()*cells.size());
+        String[] sliceLabels = new String[nSlices];
+        for (int i = 0; i < nSlices; i++) sliceLabels[i] = "Slice_" + (i + 1);
 
-            rt_raw.incrementCounter();
-            rt_stim.incrementCounter();
+        File tempDir = new File(IJ.getDirectory("temp"));
+        if (!tempDir.exists()) tempDir.mkdirs();
+        File rawFile = new File(tempDir, "signal_results.csv");
+        File stimFile = new File(tempDir, "spike_results.csv");
 
-            rt_raw.addValue("Name", name);
-            rt_stim.addValue("Name", name);
+        try (
+                BufferedWriter rawOut = new BufferedWriter(new FileWriter(rawFile));
+                BufferedWriter stimOut = new BufferedWriter(new FileWriter(stimFile))
+        ) {
+            // headers
+            writeHeader(rawOut, sliceLabels);
+            writeHeader(stimOut, sliceLabels);
 
-            rt_raw.addValue("ROI", cell.getName());
-            rt_stim.addValue("ROI", cell.getName());
+            // rows
+            final int updateEvery = Math.max(1, totalCells / 50);
+            for (int r = 0; r < totalCells; r++) {
+                CellData cell = cells.get(r);
+                String roi = cell.getName();
+                String group = getCellGroupName(cell);
+                double cx = cell.getCenterX();
+                double cy = cell.getCenterY();
 
-            rt_stim.addValue("Group",group);
-            rt_raw.addValue("Group", group);
+                // Line buffers
+                StringBuilder sbRaw = new StringBuilder(64 + 16 * nSlices);
+                StringBuilder sbStim = new StringBuilder(64 + 16 * nSlices);
 
-            rt_raw.addValue("X", cell.getCenterX());
-            rt_stim.addValue("X", cell.getCenterX());
+                appendMeta(sbRaw, name, roi, group, cx, cy, filterName, detectionMethodName);
+                appendMeta(sbStim, name, roi, group, cx, cy, filterName, detectionMethodName);
 
-            rt_raw.addValue("Y", cell.getCenterY());
-            rt_stim.addValue("Y", cell.getCenterY());
+                double[] sig = cell.getSignal();
+                int[] spike = cell.getSpikeTrain();
+                for (int s = 0; s < nSlices; s++) sbRaw.append(',').append(sig[s]);
+                for (int s = 0; s < nSlices; s++) sbStim.append(',').append(spike[s]);
 
-            rt_raw.addValue("Filter", filters[this.filter]);
-            rt_stim.addValue("Filter", filters[this.filter]);
+                rawOut.write(sbRaw.append('\n').toString());
+                stimOut.write(sbStim.append('\n').toString());
 
-            rt_raw.addValue("Detection.Method", detectionMethods[this.detectionMethod]);
-            rt_stim.addValue("Detection.Method", detectionMethods[this.detectionMethod]);
-
-            for (int i = 1; i <= imp.getNSlices(); i++){
-                rt_raw.addValue("Slice_" + i, cell.getSignal()[i-1]);
-                rt_stim.addValue("Slice_" + i, cell.getSpikeTrain()[i-1]);
+                if (r % updateEvery == 0) IJ.showProgress(r, totalCells);
             }
-
-            progress++;
+        } catch (IOException e) {
+            IJ.handleException(e);
+            return;
         }
 
-        rt_raw.show("Signal results");
-        rt_stim.show("Peak detection results");
+        new Thread(() -> {
+            try {
+                ResultsTable.open(rawFile.getAbsolutePath()).show("Signal Results");
+                ResultsTable.open(stimFile.getAbsolutePath()).show("Peak Detection Results");
+            } catch (IOException e) {
+                IJ.handleException(e);
+            }
+        }, "Open-Results").start();
     }
 
-    private String getCellGroupName(CellData cell) {
-        StringBuilder groupName = new StringBuilder();
+    private static void writeHeader(Writer w, String[] sliceLabels) throws IOException {
+        w.write("Name,ROI,Group,X,Y,Filter,Detection.Method");
+        for (String lab : sliceLabels) {
+            w.write(',');
+            w.write(lab);
+        }
+        w.write('\n');
+    }
 
-        for (GroupData group: groups) {
-            for (CellData groupCells : group.getCellsInGroup()) {
-                if (groupCells.getCellRoi() == cell.getCellRoi()) {
-                    groupName.append(group.name).append(":");
+    private static void appendMeta(StringBuilder sb, String name, String roi, String group,
+                                   double cx, double cy, String filterName, String detectionMethod) {
+        sb.append(name).append(',')
+                .append(roi).append(',')
+                .append(group).append(',')
+                .append(cx).append(',')
+                .append(cy).append(',')
+                .append(filterName).append(',')
+                .append(detectionMethod);
+    }
+
+    private void buildGroupCache() {
+        groupNameByRoi.clear();
+        if (groups == null) return;
+        for (GroupData g : groups) {
+            String prefix = g.name + ":";
+            for (CellData c : g.getCellsInGroup()) {
+                Roi r = c.getCellRoi();
+                if (r != null) {
+                    String old = groupNameByRoi.get(r);
+                    groupNameByRoi.put(r, old == null ? prefix : old + prefix);
                 }
             }
         }
-
-        return groupName.toString();
     }
 
-    public void setParameters() throws BackingStoreException {
+    private String getCellGroupName(CellData cell) {
+        Roi r = cell.getCellRoi();
+        String name = groupNameByRoi.get(r);
+        return name == null ? "" : name;
+    }
+
+
+    public void setParameters() {
         Preferences prefs = Preferences.userNodeForPackage(Exporter.class);
         this.nIterations = prefs.getInt(PREF_ITERATIONS, this.nIterations);
         this.stimulusPointsInput = prefs.get(PREF_STIMULUS, this.stimulusPointsInput);
@@ -243,7 +356,7 @@ public class Exporter {
             this.detectionMethod = gd.getNextChoiceIndex();
             this.filter = gd.getNextChoiceIndex();
 
-            if(this.detectionMethod == PEAK_LAGGING_WINDOW) {
+            if (this.detectionMethod == PEAK_LAGGING_WINDOW) {
                 this.lag = prefs.getInt(PREF_LAG, this.lag);
                 this.threshold = prefs.getDouble(PREF_THRESHOLD, this.threshold);
                 this.influence = prefs.getDouble(PREF_INFLUENCE, this.influence);
@@ -255,8 +368,8 @@ public class Exporter {
                 gd_peak.addNumericField("Influence: ", this.influence);
                 gd_peak.showDialog();
 
-                if(gd_peak.wasOKed()) {
-                    this.lag = (int)gd_peak.getNextNumber();
+                if (gd_peak.wasOKed()) {
+                    this.lag = (int) gd_peak.getNextNumber();
                     this.threshold = gd_peak.getNextNumber();
                     this.influence = gd_peak.getNextNumber();
 
@@ -266,7 +379,7 @@ public class Exporter {
                 }
             }
 
-            prefs.clear();
+
             prefs.putInt(PREF_ITERATIONS, this.nIterations);
             prefs.put(PREF_STIMULUS, this.stimulusPointsInput);
             prefs.put(PREF_STIMULUS_NAMES, this.stimulusNamesInput);
@@ -275,32 +388,29 @@ public class Exporter {
         }
     }
 
-    public void getIterations() throws BackingStoreException {
+    public void getIterations() {
         int[] windowList = WindowManager.getIDList();
-        if(windowList == null || windowList.length == 0) {
+        if (windowList == null || windowList.length == 0) {
             new Popup("Error", "No images open.").showPopup();
             return;
         }
 
         String[] impTitles = new String[windowList.length];
-        for (int i = 0; i < windowList.length; i ++){
-            ImagePlus imp = WindowManager.getImage(windowList[i]);
-            impTitles[i] = imp != null ? imp.getTitle() : "N/A";
+        for (int i = 0; i < windowList.length; i++) {
+            ImagePlus im = WindowManager.getImage(windowList[i]);
+            impTitles[i] = im != null ? im.getTitle() : "N/A";
         }
 
         GenericDialog gd = new GenericDialog("Select Iterations");
-        for (int i = 1; i <= nIterations; i++) {
-            gd.addChoice("Iteration " + i + ":", impTitles, impTitles[0]);
-        }
-
+        for (int i = 1; i <= nIterations; i++) gd.addChoice("Iteration " + i + ":", impTitles, impTitles[0]);
         gd.showDialog();
 
-        if(gd.wasOKed()) {
-            String[] selectedTitles = new String[this.nIterations];
+        if (gd.wasOKed()) {
+            iterations.clear();
             for (int i = 0; i < nIterations; i++) {
-                selectedTitles[i] = impTitles[gd.getNextChoiceIndex()];
-                iterations.add(WindowManager.getImage(selectedTitles[i]));
-                //IJ.log("Selected: " + selectedTitles[i]);
+                String title = impTitles[gd.getNextChoiceIndex()];
+                ImagePlus sel = WindowManager.getImage(title);
+                if (sel != null) iterations.add(sel);
             }
         } else if (gd.wasCanceled()) {
             setParameters();
@@ -311,9 +421,20 @@ public class Exporter {
         GenericDialog gd = new GenericDialog("Exporter Settings");
         gd.addMessage("All parameters are optional. Leave blank if excluded");
         gd.addNumericField("Iterations:", this.nIterations);
-        gd.addChoice("Response call method", detectionMethods, detectionMethods[this.detectionMethod]);
-        gd.addChoice("Filtering method", filters, filters[0]);
+        gd.addChoice("Response call method", detectionMethods, detectionMethods[Math.max(0, Math.min(this.detectionMethod, detectionMethods.length - 1))]);
+        gd.addChoice("Filtering method", filters, filters[Math.max(0, Math.min(this.filter, filters.length - 1))]);
         gd.showDialog();
         return gd;
     }
+
+    private double getPixelValue(Object pixels, int index) {
+        if (pixels instanceof byte[]) {
+            return ((byte[]) pixels)[index] & 0xff; // keep unsigned
+        } else if (pixels instanceof float[]) {
+            return ((float[]) pixels)[index];
+        } else {
+            throw new IllegalArgumentException("Unsupported pixel type: " + pixels.getClass());
+        }
+    }
+
 }
