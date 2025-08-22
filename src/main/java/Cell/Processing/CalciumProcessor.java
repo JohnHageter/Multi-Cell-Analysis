@@ -1,6 +1,5 @@
 package Cell.Processing;
 
-import ij.IJ;
 import ij.ImagePlus;
 import Cell.Utils.Utils;
 import ij.ImageStack;

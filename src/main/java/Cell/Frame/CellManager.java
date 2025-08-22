@@ -15,7 +15,6 @@ import java.awt.event.*;
 import java.awt.Color;
 
 import Cell.Utils.GroupData;
-import Cell.Utils.Test;
 import Cell.Utils.Utils;
 import Cell.UI.WaitingUI;
 
@@ -28,6 +27,8 @@ import ij.util.Tools;
 
 import java.util.*;
 import java.util.prefs.BackingStoreException;
+
+import static Cell.Processing.CellDetection.runStarDist;
 
 
 public class CellManager extends JFrame implements ActionListener, ItemListener, MouseListener, MouseWheelListener, ListSelectionListener, Iterable<Object> {
@@ -167,7 +168,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         addMenuItem("Set standard name");
         addMenuItem("Cellpose ...");
         addMenuItem("StarDist2D ...");
-        addMenuItem("Test");
+        //addMenuItem("Test");
     }
 
     private void addMenuItem(String s) {
@@ -182,16 +183,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         if (label == null) {
             return;
         }
-
-//        addButton("Motion Correction",                           2, 0, 1, 1);
-//        addButton("Polygon grouping",                            2, 1, 1, 1);
-//        addButton("Point grouping",                              2, 2, 1, 1);
-//        addButton("Export data",                                 2, 3, 1, 1);
-//        addButton("Convert stack to DF/F",                       2, 4, 1, 1);
-//        addButton("Add cell [`]",                                2, 5, 1, 1);
-//        addButton("Delete",                                      2, 6, 1, 1);
-//        addButton("Load from ROI Manager",                       2, 7, 1, 1);
-//        addButton("More...",                                     2, 8, 1, 1);
 
         switch (label) {
             case "Motion Correction":
@@ -229,7 +220,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 }
                 break;
             case "Convert stack to DF/F":
-
                 convertStackToDF();
                 break;
             case "Load from ROI Manager":
@@ -272,16 +262,13 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 break;
             case "StarDist2D ...":
                 try {
-                    IJ.run("StarDist2D... (Advanced)");
+                    runStarDist();
                 } catch (Exception error){
                     IJ.log("BIOP, ImageScience, StarDist, and CSBDeep update sites must be enabled to run StarDist2D.");
                     IJ.log(error.getMessage());
                 }
                 break;
             case "Test":
-                //Test.testGaussian();
-                //Test.testSpikeDetection();
-                Test.testBlur();
                 break;
             default:
                 throw new IllegalStateException("Unexpected value: " + label);
@@ -444,6 +431,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         int count = getCount();
         if (count == 0) {
             popupError("The Cell manager is empty");
+            return;
         }
         int[] indicies = getSelectedIndices();
         if(indicies.length == 0){
@@ -921,7 +909,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         for (CellData cell : cells) {
             Roi cellRoi = cell.getCellRoi();
             if (cellRoi != null) {
-                cellRoi.setStrokeColor(Color.RED);
+                cellRoi.setStrokeColor(Color.YELLOW);
                 allCellOverlay.add(cellRoi);
             }
         }

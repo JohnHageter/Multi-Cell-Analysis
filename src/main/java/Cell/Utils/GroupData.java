@@ -9,10 +9,6 @@ public class GroupData {
     public ArrayList<CellData> cells = new ArrayList<>();
     public String name;
 
-    public GroupData(ArrayList<CellData> cells){
-        this.cells = cells;
-    }
-
     public GroupData(String name){
         this.name = name;
     }

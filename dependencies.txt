@@ -1,6 +1,0 @@
-Platform dependencies
-Update Site for StarDist and CBSDeep
-Update Site for IJ-OpenCV-Plugins
-MCA.jar
-
-OpenBLAS?

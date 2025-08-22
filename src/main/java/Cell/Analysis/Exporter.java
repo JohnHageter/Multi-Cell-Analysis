@@ -1,7 +1,6 @@
 package Cell.Analysis;
 
 import Cell.UI.Popup;
-import Cell.UI.WaitingUI;
 import Cell.Utils.CellData;
 import Cell.Utils.GroupData;
 import ij.IJ;
@@ -13,7 +12,6 @@ import ij.measure.ResultsTable;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 
-import java.awt.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -43,7 +41,6 @@ public class Exporter {
     private int lag = 30;
     private double threshold = 3.0;
     private double influence = 0.25;
-    private boolean convertedFormat = false;
 
     ArrayList<ImagePlus> iterations = new ArrayList<ImagePlus>();
     ArrayList<CellData> cells;
@@ -52,14 +49,14 @@ public class Exporter {
     ImagePlus averageImp;
 
 
-    private ResultsTable rt_raw = new ResultsTable();
-    private ResultsTable rt_stim = new ResultsTable();
+    private final ResultsTable rt_raw = new ResultsTable();
+    private final ResultsTable rt_stim = new ResultsTable();
 
-    private final String[] detectionMethods = new String[]{">3σ", "Peak Detection", "None"};
+    private final String[] detectionMethods = new String[]{"Peak Detection", "None"};
     private final String[] filters = new String[]{"Gaussian", "None"};
 
     public static final int FILTER_GAUSSIAN = 0;
-    public static final int FILTER_NONE = 1;
+    public static final int FILTER_NONE = -1;
     public static final int PEAK_LAGGING_WINDOW = 1;
 
     public Exporter(ArrayList<CellData> cells, ArrayList<GroupData> groups){
@@ -78,18 +75,19 @@ public class Exporter {
 
         int stackSize = iterations.get(0).getStackSize();
 
-        ImageStack imp = new ImageStack();
-        for (int i = 1; i <= stackSize; i++){
-            ImageProcessor ip = averageIterations(i);
-            imp.addSlice(ip);
-        }
-
-        averageImp = new ImagePlus(iterations.get(0).getTitle() + "_AVG", imp);
-        averageImp.show();
+        new Thread(() -> {
+            ImageStack imp = new ImageStack();
+            for (int i = 1; i <= stackSize; i++){
+                ImageProcessor ip = averageIterations(i);
+                imp.addSlice(ip);
+            }
+            averageImp = new ImagePlus(iterations.get(0).getTitle() + "_AVG", imp);
+            averageImp.show();
+        }).start();
 
         filterSignal();
         detectPeaks();
-        getResultsTable();
+        new Thread(this::getResultsTable).start();
     }
 
     public ImageProcessor averageIterations(int sliceIndex) {
@@ -116,7 +114,6 @@ public class Exporter {
         return rp;
     }
 
-
     public void filterSignal(){
         int nSlices = imp.getNSlices();
         IJ.showStatus("Filtering signal...");
@@ -132,9 +129,16 @@ public class Exporter {
                 ip.setRoi(cell.getCellRoi());
                 ImageStatistics stats = ip.getStatistics();
                 signal[i-1] = stats.mean;
-                IJ.showProgress(cellIndex*i,cells.size()*nSlices);
             }
-            cell.setSignal(signal);
+            IJ.showProgress(cellIndex,cells.size()*nSlices);
+
+            if(this.filter == FILTER_GAUSSIAN) {
+                double[] fsignal = SignalFilter.gaussianFilter(signal, 0.3);
+                cell.setSignal(fsignal);
+            } else {
+                cell.setSignal(signal);
+            }
+
             cellIndex++;
         }
     }
@@ -157,7 +161,7 @@ public class Exporter {
 
     public void getResultsTable(){
         if(imp.getTitle().contains("_DELTAF")){
-            convertedFormat = true;
+            boolean convertedFormat = true;
         } else {
             IJ.log("WARNING: Image series may not be in converted Delta F/F format");
         }
@@ -311,12 +315,5 @@ public class Exporter {
         gd.addChoice("Filtering method", filters, filters[0]);
         gd.showDialog();
         return gd;
-    }
-
-    public double convertToTime(int slice, double framerate) {
-        if (framerate <= 0) {
-            framerate = 1;
-        }
-        return slice / framerate;
     }
 }

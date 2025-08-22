@@ -5,10 +5,8 @@ import ij.ImagePlus;
 import ij.process.ImageProcessor;
 
 import org.bytedeco.javacpp.FloatPointer;
-import org.bytedeco.javacpp.Loader;
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.javacpp.BytePointer;
-import org.bytedeco.javacpp.ShortPointer;
 
 import static org.bytedeco.opencv.global.opencv_core.*;
 

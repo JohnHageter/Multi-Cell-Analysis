@@ -20,13 +20,8 @@ public class MotionCorrection {
     int width, height;
     double disX, disY;
     int itpMethod = 0;
-
     boolean subPixel = true;
-
     FloatProcessor result;
-
-    private final boolean DEBUG = false;
-    ImageStack crossCorrelationStack = new ImageStack();
 
     public MotionCorrection(Roi template){
         this.template = template;
@@ -59,30 +54,19 @@ public class MotionCorrection {
 
             ImagePlus ret = new ImagePlus(imp.getTitle() + "_REGISTERED", registered);
             ret.show();
-
-            if(DEBUG){
-                ImagePlus correlationImp = new ImagePlus(imp.getTitle() + "_Cross_Correlation", crossCorrelationStack);
-                correlationImp.show();
-            }
-
             IJ.showProgress(1.0);
         }).start();
     }
 
     private void alignSlices(int slice) {
         int[] dxdy;
-        boolean edge = false;
         target = stack.getProcessor(slice);
         target.resetRoi();
 
         result = TemplateMatching.doMatch(target.crop(), reference);
-        if(DEBUG){
-            crossCorrelationStack.addSlice(result.duplicate());
-        }
 
         //assert result != null;
         dxdy = findMax(result, 0);
-
 
         if (subPixel) {
             double[] dxdyG;
@@ -111,10 +95,6 @@ public class MotionCorrection {
 
         registered.addSlice(target.duplicate());
         registered.getProcessor(slice).translate(disX,disY);
-
-        if(DEBUG){
-            IJ.log("dX: " + disX + ", " + "dY:" + disY);
-        }
 
     }
 

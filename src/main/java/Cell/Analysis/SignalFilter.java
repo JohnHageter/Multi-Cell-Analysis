@@ -1,27 +1,7 @@
 package Cell.Analysis;
 
 public class SignalFilter {
-    private int samplingRate;
-    private int order;
-    private int cutOff;
-
-    private int lowCutOff;
-    private int highCutoff;
-
     public SignalFilter(){}
-
-    public SignalFilter(int samplingRate, int order, int cutOff) {
-        this.samplingRate = samplingRate;
-        this.order = order;
-        this.cutOff = cutOff;
-    }
-
-    public SignalFilter(int samplingRate, int order, int lowCutOff, int highCutoff){
-        this.samplingRate = samplingRate;
-        this.order = order;
-        this.lowCutOff = lowCutOff;
-        this.highCutoff = highCutoff;
-    }
 
     public static double[] gaussianFilter(double[] signal, double sigma){
         int kernelSize = (int) Math.ceil(6 * sigma);
@@ -33,14 +13,14 @@ public class SignalFilter {
         int halfKernel = kernelSize /2;
         double sum = 0.0;
 
-        //Generate
+        //Generate kernel
         for (int i = -halfKernel; i <= halfKernel; i++){
             double val = Math.exp(-(i*i)/(2*sigma*sigma));
             kernel[i + halfKernel] = val;
             sum += val;
         }
 
-        //Normalize
+        //Normalize kernel
         for (int i = 0; i < kernel.length; i++){
             kernel[i] /= sum;
         }

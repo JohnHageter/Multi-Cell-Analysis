@@ -13,9 +13,7 @@ The main module of MCA is the cell manager which is heavily inspired by ImageJ's
 
 
 ## Installation  
-The MCA Plugin can currently be installed by downlownding the latest Jar from the releases tab and placing the .jar file in the plugins folder within ImageJ.  
-  
-You can also install MCA through the ImageJ update site with the following steps:  
+The MCA Plugin can currently be installed through the ImageJ update site with the following steps:  
 1. Run ImageJ Update. `Help >> Update...`
 2. In the ImageJ updater select "Add Unlisted Site" and add https://sites.imagej.net/MultiCellPlugins  
 3. Continue with update and restart ImageJ
