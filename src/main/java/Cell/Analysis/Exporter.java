@@ -81,7 +81,7 @@ public class Exporter {
         new Thread(() -> {
             ImageStack outStack = new ImageStack(iterations.get(0).getWidth(), iterations.get(0).getHeight());
             for (int s = 1; s <= stackSize; s++) {
-                FloatProcessor fp = averageIterationsFast(s);
+                FloatProcessor fp = averageIterations(s);
                 outStack.addSlice(fp);
                 if (s % 10 == 0) IJ.showProgress(s, stackSize);
             }
@@ -89,13 +89,15 @@ public class Exporter {
             averageImp.show();
         }, "AVG-Iterations").start();
 
-        filterSignalFast();
-        detectPeaksFast();
+        if (this.filter == FILTER_GAUSSIAN) {
+            filterSignal();
+        }
+        detectPeaks();
         new Thread(this::getResultsTable, "Write-Results").start();
     }
 
 
-    private FloatProcessor averageIterationsFast(int sliceIndex) {
+    private FloatProcessor averageIterations(int sliceIndex) {
         int width = iterations.get(0).getWidth();
         int height = iterations.get(0).getHeight();
         int nPix = width * height;
@@ -128,7 +130,7 @@ public class Exporter {
         return new FloatProcessor(width, height, avg);
     }
 
-    private void filterSignalFast() {
+    private void filterSignal() {
         final int nSlices = imp.getNSlices();
         IJ.showStatus("Filtering signal...");
         IJ.showProgress(0, Math.max(1, cells.size()));
@@ -199,7 +201,7 @@ public class Exporter {
     }
 
 
-    private void detectPeaksFast() {
+    private void detectPeaks() {
         final int nSlices = imp.getNSlices();
         IJ.showStatus("Detecting peaks...");
         IJ.showProgress(0, Math.max(1, cells.size()));
@@ -257,7 +259,7 @@ public class Exporter {
             writeHeader(stimOut, sliceLabels);
 
             // rows
-            final int updateEvery = Math.max(1, totalCells / 50);
+            final int updateEvery = 1;
             for (int r = 0; r < totalCells; r++) {
                 CellData cell = cells.get(r);
                 String roi = cell.getName();
@@ -280,7 +282,7 @@ public class Exporter {
                 rawOut.write(sbRaw.append('\n').toString());
                 stimOut.write(sbStim.append('\n').toString());
 
-                if (r % updateEvery == 0) IJ.showProgress(r, totalCells);
+                IJ.showProgress(r, totalCells);
             }
         } catch (IOException e) {
             IJ.handleException(e);

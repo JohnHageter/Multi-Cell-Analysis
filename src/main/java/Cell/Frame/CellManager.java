@@ -598,7 +598,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         }
 
         IJ.setTool("Multi-Point");
-        WaitingUI waitingUI = new WaitingUI("Apply group", "Select template ROI");
+        WaitingUI waitingUI = new WaitingUI("Apply group", "Create Grouping ROI,\n then click OK.");
 
         waitingUI.setTask(() -> {
             Roi groupingRoi = imp.getRoi();
