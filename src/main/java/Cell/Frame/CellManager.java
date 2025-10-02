@@ -944,11 +944,13 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
     private void removeOverlay() {
         ImagePlus imp = WindowManager.getCurrentImage();
+        IJ.log(imp.getTitle());
         if (imp == null) {
             return;
         }
 
-        imp.setOverlay(null);
+        setOverlay(imp,null);
+        IJ.log("Set overlay to null");
         imp.updateAndDraw();
     }
 
