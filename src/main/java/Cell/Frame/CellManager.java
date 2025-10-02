@@ -5,19 +5,10 @@ import Cell.Annotation.SelectionGrouping;
 import Cell.Processing.CalciumProcessor;
 import Cell.Processing.MotionCorrection;
 import Cell.UI.Popup;
+import Cell.UI.WaitingUI;
 import Cell.Utils.CellData;
-
-import javax.swing.*;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.ListSelectionListener;
-import java.awt.*;
-import java.awt.event.*;
-import java.awt.Color;
-
 import Cell.Utils.GroupData;
 import Cell.Utils.Utils;
-import Cell.UI.WaitingUI;
-
 import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
@@ -25,11 +16,17 @@ import ij.gui.*;
 import ij.plugin.frame.RoiManager;
 import ij.util.Tools;
 
+import javax.swing.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import java.awt.*;
+import java.awt.event.*;
 import java.util.*;
+import java.util.List;
 import java.util.prefs.BackingStoreException;
 
+import static Cell.Processing.CellDetection.runCellpose;
 import static Cell.Processing.CellDetection.runStarDist;
-
 
 public class CellManager extends JFrame implements ActionListener, ItemListener, MouseListener, MouseWheelListener, ListSelectionListener, Iterable<Object> {
     private static JFrame instance;
@@ -52,17 +49,14 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     private boolean allowDuplicates;
     private int prevID;
 
-
     public CellManager() {
         super("Cell Manager");
         if (instance != null) {
-            //IJ.log("Instance already exists, bringing it to front.");
             WindowManager.toFront(instance);
             return;
         }
 
         instance = this;
-        //IJ.log("Creating new CellManager instance.");
         list = new JList<>();
         listModel = new DefaultListModel<>();
         list.setModel(listModel);
@@ -76,12 +70,55 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         return (CellManager) instance;
     }
 
+    /* ------------------------------
+       Helper overlay & utility methods
+       extracted to reduce duplication
+       ------------------------------ */
+    private Overlay buildCellOverlay(List<CellData> cellList, Color stroke) {
+        Overlay ol = new Overlay();
+        for (CellData cell : cellList) {
+            Roi r = cell.getCellRoi();
+            if (r != null) {
+                r.setStrokeColor(stroke);
+                ol.add(r);
+            }
+        }
+        return ol;
+    }
+
+    private Overlay buildGroupOverlay(List<GroupData> groupList) {
+        Overlay ol = new Overlay();
+        for (GroupData gd : groupList) {
+            if (gd.roi != null) {
+                gd.roi.setStrokeColor(Color.CYAN);
+                gd.roi.setStrokeWidth(2.0f);
+                ol.add(gd.roi);
+            }
+            if (gd.cells != null && !gd.cells.isEmpty()) {
+                for (CellData cell : gd.cells) {
+                    Roi r = cell.getCellRoi();
+                    if (r != null) {
+                        r.setStrokeColor(Color.MAGENTA);
+                        ol.add(r);
+                    }
+                }
+            }
+        }
+        return ol;
+    }
+
+    private void applyOverlayToImage(ImagePlus imp, Overlay ol) {
+        if (imp == null) return;
+        setOverlay(imp, ol);
+        imp.updateAndDraw();
+    }
+
     private void showCellManager() {
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         panel.removeAll();
         panel.revalidate();
         panel.repaint();
-        //IJ.log("Creating UI");
+
         addKeyListener(IJ.getInstance());
         addMouseListener(this);
         addMouseWheelListener(this);
@@ -94,18 +131,18 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
         gbc.weightx = 1;
         gbc.weighty = 0;
-        addButton("Motion Correction",                           2, 0, 1, 1);
-        addButton("Polygon grouping",                            2, 1, 1, 1);
-        addButton("Point grouping",                              2, 2, 1, 1);
-        addButton("Export data",                                 2, 3, 1, 1);
-        addButton("Convert stack to DF/F",                       2, 4, 1, 1);
-        addButton("Add cell [`]",                                2, 5, 1, 1);
-        addButton("Delete",                                      2, 6, 1, 1);
-        addButton("Load from ROI Manager",                       2, 7, 1, 1);
+        addButton("Add cell",                                    2, 0, 1, 1);
+        addButton("Delete",                                      2, 1, 1, 1);
+        addButton("Load from ROI Manager",                       2, 2, 1, 1);
+        addButton("Polygon grouping",                            2, 3, 1, 1);
+        addButton("Point grouping",                              2, 4, 1, 1);
+        addButton("Motion Correction",                           2, 5, 1, 1);
+        addButton("Convert stack to DF/F",                       2, 6, 1, 1);
+        addButton("Generate data",                                 2, 7, 1, 1);
         addButton("More...",                                     2, 8, 1, 1);
 
-        addButton("Cells",                      0, 10, 1,1);
-        addButton("Groups",                     1,10,1,1);
+        addButton("Cells",                                       0, 10, 1,1);
+        addButton("Groups",                                      1, 10, 1,1);
         addMoreMenu();
 
         // Cells list
@@ -187,7 +224,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         switch (label) {
             case "Motion Correction":
                 if(WindowManager.getCurrentImage()!= null){
-                    WaitingUI waitingUI = new WaitingUI("Motion Correction", "Select template ROI");
+                    WaitingUI waitingUI = new WaitingUI("Motion Correction", "Draw template ROI\nthen click OK.");
                     waitingUI.setTask(() -> {
                         MotionCorrection mc = new MotionCorrection(IJ.getImage().getRoi());
                         mc.normXCorr(IJ.getImage());
@@ -207,7 +244,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             case "Point grouping":
                 runpointGrouping();
                 break;
-            case "Export data":
+            case "Generate data":
                 if (WindowManager.getCurrentImage()!= null) {
                     Exporter exporter = new Exporter(cells, groups);
                     try {
@@ -225,7 +262,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             case "Load from ROI Manager":
                 importFromROIManager();
                 break;
-            case "Add cell [`]":
+            case "Add cell":
                 if(WindowManager.getCurrentImage() != null) {
                     Roi selection = WindowManager.getCurrentImage().getRoi();
                     if(selection != null) {
@@ -251,20 +288,17 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 nameCells();
                 break;
             case "Cellpose ...":
-                new Thread(() -> {
-                    try {
-                        IJ.run("Cellpose ...");
-                    } catch (Exception error) {
-                        IJ.log("BIOP, ImageScience, and Trackmate-Cellpose update sites must be enabled to run Cellpose.");
-                        IJ.log(error.getMessage());
-                    }
-                }).start();
+                try {
+                    runCellpose();
+                } catch (Exception error) {
+                    popupError("Cellpose failed to run.\nPlease ensure cellpose is properly installed and arguments are spelled properly.");
+                }
                 break;
             case "StarDist2D ...":
                 try {
                     runStarDist();
                 } catch (Exception error){
-                    IJ.log("BIOP, ImageScience, StarDist, and CSBDeep update sites must be enabled to run StarDist2D.");
+                    IJ.log("ImageScience, StarDist, and CSBDeep update sites must be enabled to run StarDist2D.");
                     IJ.log(error.getMessage());
                 }
                 break;
@@ -485,15 +519,17 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
     private void updateShowAll() {
         ImagePlus imp = WindowManager.getCurrentImage();
-        if (imp == null) {return;}
-        if (showAll.isEnabled()){
-            if (getCount() > 0) {
-                CellData[] cells = getCellDataAsArray();
-                Overlay ol = new Overlay();
-                for (int i = 0; i < cells.length; i++) {
-                    setOverlay(imp, ol);
-                }
+        if (imp == null) return;
+        if (showAll.isSelected()) {
+            if (showingGroups) {
+                Overlay ol = buildGroupOverlay(groups);
+                applyOverlayToImage(imp, ol);
+            } else {
+                Overlay ol = buildCellOverlay(cells, Color.YELLOW);
+                applyOverlayToImage(imp, ol);
             }
+        } else {
+            removeOverlay();
         }
     }
 
@@ -545,7 +581,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         }
 
         IJ.setTool("polygon");
-        WaitingUI waitingUI = new WaitingUI("Apply group", "Select template ROI");
+        WaitingUI waitingUI = new WaitingUI("Apply group", "Draw grouping ROI\n then click OK.");
 
         waitingUI.setTask(() -> {
             ImagePlus imp = IJ.getImage();
@@ -564,7 +600,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             SelectionGrouping selectionGroup = new SelectionGrouping();
             GroupData group = selectionGroup.applyGroup(cells, groupingRoi, groupName, SelectionGrouping.METHOD_POLYGON);
             groups.add(group);
-            //IJ.log("Added group " + group.name + " to groups. Current length: " +groups.size());
 
             Overlay overlay = imp.getOverlay();
             if (overlay == null) {
@@ -610,7 +645,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             SelectionGrouping selectionGroup = new SelectionGrouping();
             GroupData group = selectionGroup.applyGroup(cells, groupingRoi, groupName, SelectionGrouping.METHOD_POINT);
             groups.add(group);
-            //IJ.log("Added group " + group.name + " to groups. Current length: " +groups.size());
 
             Overlay overlay = imp.getOverlay();
             if (overlay == null) {
@@ -623,8 +657,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
             imp.updateAndDraw();
         });
-
-
 
     }
 
@@ -716,7 +748,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         int begin = -1, end = -1;
 
         GenericDialog gd = new GenericDialog("Fluorescence conversion");
-        gd.addMessage("Input baseline (ex. 0-60)");
+        gd.addMessage("Input baseline (ex. 1-60)");
         gd.addStringField("Baseline: ", "");
         gd.addCheckbox("Subtract background", true);
         gd.showDialog();
@@ -877,74 +909,28 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         return list.getSelectedIndices();
     }
 
-    public void select(int index, boolean shiftKeyDown, boolean altKeyDown) {
-        if(!(shiftKeyDown || altKeyDown)) {
-            select(index);
-        }
-        ImagePlus imp = IJ.getImage();
-        if (imp == null) {
-            return;
-        }
-        CellData cd = (CellData)cells.get(index);
-        if (cd!= null) {
-            //???
-        }
-    }
-
     public void select(int index) {
         select(null, index);
     }
 
     private void showCells() {
         listModel.clear();
-        for (CellData cell : cells) {
-            listModel.addElement(cell.getName());
-        }
+        for (CellData cell : cells) listModel.addElement(cell.getName());
         showingGroups = false;
-
         ImagePlus imp = WindowManager.getCurrentImage();
         if (imp == null) return;
-
-        allCellOverlay = new Overlay();
-        for (CellData cell : cells) {
-            Roi cellRoi = cell.getCellRoi();
-            if (cellRoi != null) {
-                cellRoi.setStrokeColor(Color.YELLOW);
-                allCellOverlay.add(cellRoi);
-            }
-        }
-        imp.setOverlay(allCellOverlay);
-        imp.updateAndDraw();
+        Overlay ol = buildCellOverlay(cells, Color.YELLOW);
+        applyOverlayToImage(imp, ol);
     }
 
     private void showGroups() {
         listModel.clear();
-
-        for (GroupData group : groups) {
-            listModel.addElement(group.name);
-        }
+        for (GroupData group : groups) listModel.addElement(group.name);
         showingGroups = true;
-
         ImagePlus imp = WindowManager.getCurrentImage();
         if (imp == null) return;
-
-        allGroupOverlay = new Overlay();
-        for (GroupData group : groups) {
-            Roi groupRoi = group.getRoi();
-            if (groupRoi != null) {
-                groupRoi.setStrokeColor(Color.CYAN);
-                if(!group.cells.isEmpty()) {
-                    for (CellData cell : group.cells) {
-                        cell.getCellRoi().setStrokeColor(Color.MAGENTA);
-                        allGroupOverlay.add(cell.getCellRoi());
-                    }
-                }
-                allGroupOverlay.add(groupRoi);
-            }
-        }
-
-        imp.setOverlay(allGroupOverlay);
-        imp.updateAndDraw();
+        Overlay ol = buildGroupOverlay(groups);
+        applyOverlayToImage(imp, ol);
     }
 
     private void showAllCells() {
@@ -952,19 +938,8 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         if(imp == null) {
             return;
         }
-
-        allCellOverlay = new Overlay();
-
-        for (CellData cell : cells) {
-            Roi cellRoi = cell.getCellRoi();
-            if (cellRoi != null) {
-                cellRoi.setStrokeColor(Color.YELLOW);
-                allCellOverlay.add(cellRoi);
-            }
-        }
-
-        imp.setOverlay(allCellOverlay);
-        imp.updateAndDraw();
+        Overlay ol = buildCellOverlay(cells, Color.YELLOW);
+        applyOverlayToImage(imp, ol);
     }
 
     private void removeOverlay() {
@@ -983,32 +958,15 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             return;
         }
 
-        allGroupOverlay = new Overlay();
-        for (GroupData gd : groups) {
-            if (gd.roi != null) {
-                gd.roi.setStrokeColor(Color.CYAN);
-                gd.roi.setStrokeWidth(2.0f);
-                allGroupOverlay.add(gd.roi);
-            }
-        }
-
-        imp.setOverlay(allGroupOverlay);
-        imp.updateAndDraw();
+        Overlay ol = buildGroupOverlay(groups);
+        applyOverlayToImage(imp, ol);
     }
 
     @Override
     public void itemStateChanged(ItemEvent e) {
-        Object source = e.getItemSelectable();
-
-        if (source == showAll && !showingGroups) {
+        if (e.getSource() == showAll) {
             if (e.getStateChange() == ItemEvent.SELECTED) {
-                showAllCells();
-            } else {
-                removeOverlay();
-            }
-        } else if (source == showAll && showingGroups) {
-            if (e.getStateChange() == ItemEvent.SELECTED) {
-                showAllGroups();
+                updateShowAll();
             } else {
                 removeOverlay();
             }
@@ -1099,54 +1057,37 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
 
     @Override
     public void valueChanged(ListSelectionEvent e) {
-        if (e.getValueIsAdjusting()) {
-            return;
-        }
+        if (e.getValueIsAdjusting()) return;
+        if (getCount() == 0) return;
+        int selectedIndex = list.getSelectedIndex();
+        if (selectedIndex < 0) return;
+        ImagePlus image = WindowManager.getCurrentImage();
+        if (image == null) return;
 
-        if (getCount() == 0) {
-            return;
-        }
-
-        if(!showingGroups){
-            int selectedIndex = list.getSelectedIndex();
-            if (selectedIndex < 0) {
-                return;
-            }
+        if (!showingGroups) {
             CellData cd = cells.get(selectedIndex);
-            if (WindowManager.getCurrentImage() == null) {
-                return;
-            }
-            ImagePlus image = WindowManager.getCurrentImage();
             Roi cellRoi = cd.getCellRoi();
             if (cellRoi != null) {
                 cellRoi.setStrokeColor(Color.YELLOW);
                 image.setRoi(cellRoi);
-                //IJ.log("Set cell roi: " + cellRoi.getName() + " " + showingGroups);
                 image.updateAndDraw();
             }
         } else {
-            int selectedIndex = list.getSelectedIndex();
-            //IJ.log(String.valueOf(selectedIndex));
-            if (selectedIndex < 0) {
-                return;
-            }
             GroupData gd = groups.get(selectedIndex);
-            if(WindowManager.getCurrentImage() == null) {return;}
-            ImagePlus image = WindowManager.getCurrentImage();
-            image.getOverlay().clear();
             Overlay overlay = new Overlay();
-
             if (gd.getRoi() != null) {
                 gd.getRoi().setStrokeColor(Color.CYAN);
                 overlay.add(gd.getRoi());
-                for (CellData cell: gd.getCellsInGroup()) {
-                    cell.getCellRoi().setStrokeColor(Utils.randomColor());
-                    overlay.add(cell.getCellRoi());
-                }
-                image.setOverlay(overlay);
-                //IJ.log("Set group roi" + gd.name + "\n" + gd.getCellsInGroup());
-                image.updateAndDraw();
             }
+            for (CellData cell : gd.getCellsInGroup()) {
+                Roi r = cell.getCellRoi();
+                if (r != null) {
+                    r.setStrokeColor(Utils.randomColor());
+                    overlay.add(r);
+                }
+            }
+            image.setOverlay(overlay);
+            image.updateAndDraw();
         }
     }
 
@@ -1156,7 +1097,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             dispose();
             WindowManager.removeWindow(this);
             instance = null;
-            //IJ.log("Dispose and instance == null");
         }
     }
 }

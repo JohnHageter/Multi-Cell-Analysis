@@ -1,5 +1,6 @@
 package Cell.Analysis;
 
+import Cell.Frame.CellManager;
 import Cell.UI.Popup;
 import Cell.Utils.CellData;
 import Cell.Utils.GroupData;
@@ -8,10 +9,10 @@ import ij.ImagePlus;
 import ij.ImageStack;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
+import ij.gui.Overlay;
 import ij.gui.Roi;
 import ij.measure.ResultsTable;
 import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
 
 import java.awt.*;
 import java.io.*;
@@ -19,7 +20,6 @@ import java.util.*;
 import java.util.List;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
-import java.util.stream.IntStream;
 
 /**
  * Optimized Exporter:
@@ -37,15 +37,18 @@ public class Exporter {
     private static final String PREF_LAG = "Lag";
     private static final String PREF_THRESHOLD = "Threshold";
     private static final String PREF_INFLUENCE = "Influence";
+    private static final String PREF_SIGMA = "Sigma";
 
     private String stimulusPointsInput = "";
     private String stimulusNamesInput = "";
+    private String exportName = "";
     private int nIterations = 2;
     private int detectionMethod = 0;
     private int filter = 0;
     private int lag = 30;
     private double threshold = 3.0;
     private double influence = 0.25;
+    private double sigma = 0.3;
 
     private final ArrayList<ImagePlus> iterations = new ArrayList<>();
     private final ArrayList<CellData> cells;
@@ -57,8 +60,9 @@ public class Exporter {
     private final String[] filters = new String[]{"Gaussian", "None"};
 
     public static final int FILTER_GAUSSIAN = 0;
-    public static final int FILTER_NONE = -1;
-    public static final int PEAK_LAGGING_WINDOW = 1;
+    public static final int FILTER_NONE = 1;
+    public static final int PEAK_LAGGING_WINDOW = 0;
+    public static final int DETECT_NONE = 1;
 
     private final Map<CellData, int[]> pixelIndexCache = new IdentityHashMap<>();
     private final Map<Roi, String> groupNameByRoi = new IdentityHashMap<>();
@@ -76,26 +80,62 @@ public class Exporter {
 
         if (this.cells == null || this.cells.isEmpty()) return;
 
-        final int stackSize = iterations.get(0).getStackSize();
-
-        new Thread(() -> {
-            ImageStack outStack = new ImageStack(iterations.get(0).getWidth(), iterations.get(0).getHeight());
-            for (int s = 1; s <= stackSize; s++) {
-                FloatProcessor fp = averageIterations(s);
-                outStack.addSlice(fp);
-                if (s % 10 == 0) IJ.showProgress(s, stackSize);
-            }
-            averageImp = new ImagePlus(iterations.get(0).getTitle() + "_AVG", outStack);
-            averageImp.show();
-        }, "AVG-Iterations").start();
+        new Thread(this::generateAverageStack, "AVG-Iterations").start();
 
         if (this.filter == FILTER_GAUSSIAN) {
             filterSignal();
         }
-        detectPeaks();
+
+        if (this.detectionMethod == PEAK_LAGGING_WINDOW){
+            detectPeaks();
+            generatePeakStack();
+        }
+
         new Thread(this::getResultsTable, "Write-Results").start();
     }
 
+    private void generatePeakStack() {
+        ImagePlus sigStack = averageImp;
+        sigStack.setTitle(iterations.get(0).getTitle() + "_PEAK");
+        int nSlices = sigStack.getNSlices();
+
+        if (cells == null || cells.isEmpty()) {
+            IJ.log("No cells found.");
+            return;
+        }
+
+        CellManager cm = CellManager.getInstance();
+        if (cm == null) return;
+
+        Overlay overlay = new Overlay();
+
+        for (CellData cell : cells) {
+            int[] spikeTrain = cell.getSpikeTrain();
+            Roi baseRoi = cell.getCellRoi();
+            if (baseRoi == null) continue;
+
+            for (int s = 0; s < nSlices && s < spikeTrain.length; s++) {
+                int val = spikeTrain[s];
+
+
+                Roi sliceRoi = (Roi) baseRoi.clone();
+                sliceRoi.setPosition(s+1);
+
+                if (val == 1) {
+                    sliceRoi.setStrokeColor(Color.GREEN);
+                } else if (val == -1) {
+                    sliceRoi.setStrokeColor(Color.RED);
+                } else {
+                    sliceRoi.setStrokeColor(Color.BLUE);
+                }
+
+                overlay.add(sliceRoi);
+            }
+        }
+
+        sigStack.setOverlay(overlay);
+        sigStack.show();
+    }
 
     private FloatProcessor averageIterations(int sliceIndex) {
         int width = iterations.get(0).getWidth();
@@ -130,6 +170,18 @@ public class Exporter {
         return new FloatProcessor(width, height, avg);
     }
 
+    private void generateAverageStack() {
+        int stackSize = iterations.get(0).getStackSize();
+        ImageStack outStack = new ImageStack(iterations.get(0).getWidth(), iterations.get(0).getHeight());
+        for (int s = 1; s <= stackSize; s++) {
+            FloatProcessor fp = averageIterations(s);
+            outStack.addSlice(fp);
+            if (s % 10 == 0) IJ.showProgress(s, stackSize);
+        }
+        averageImp = new ImagePlus(iterations.get(0).getTitle() + "_AVG", outStack);
+        averageImp.show();
+    }
+
     private void filterSignal() {
         final int nSlices = imp.getNSlices();
         IJ.showStatus("Filtering signal...");
@@ -160,7 +212,7 @@ public class Exporter {
             }
 
             if (this.filter == FILTER_GAUSSIAN) {
-                double[] fsignal = SignalFilter.gaussianFilter(signal, 0.3);
+                double[] fsignal = SignalFilter.gaussianFilter(signal, this.sigma);
                 cell.setSignal(fsignal);
             } else {
                 cell.setSignal(signal);
@@ -172,7 +224,6 @@ public class Exporter {
             }
         }
     }
-
 
     private void precomputeAllPixelIndices() {
         final int w = imp.getWidth();
@@ -199,7 +250,6 @@ public class Exporter {
             }
         }
     }
-
 
     private void detectPeaks() {
         final int nSlices = imp.getNSlices();
@@ -228,7 +278,6 @@ public class Exporter {
         }
     }
 
-
     public void getResultsTable() {
         if (!imp.getTitle().contains("_DELTAF")) {
             IJ.log("WARNING: Image series may not be in converted Delta F/F format");
@@ -240,7 +289,6 @@ public class Exporter {
         int totalCells = cells.size();
         String filterName = filters[Math.max(0, Math.min(this.filter, filters.length - 1))];
         String detectionMethodName = detectionMethods[Math.max(0, Math.min(this.detectionMethod, detectionMethods.length - 1))];
-        String name = imp.getTitle().trim();
 
         String[] sliceLabels = new String[nSlices];
         for (int i = 0; i < nSlices; i++) sliceLabels[i] = "Slice_" + (i + 1);
@@ -248,15 +296,17 @@ public class Exporter {
         File tempDir = new File(IJ.getDirectory("temp"));
         if (!tempDir.exists()) tempDir.mkdirs();
         File rawFile = new File(tempDir, "signal_results.csv");
-        File stimFile = new File(tempDir, "spike_results.csv");
+        File stimFile = (this.detectionMethod == PEAK_LAGGING_WINDOW)
+                ? new File(tempDir, "spike_results.csv")
+                : null;
 
         try (
                 BufferedWriter rawOut = new BufferedWriter(new FileWriter(rawFile));
-                BufferedWriter stimOut = new BufferedWriter(new FileWriter(stimFile))
+                BufferedWriter stimOut = (stimFile != null) ? new BufferedWriter(new FileWriter(stimFile)) : null
         ) {
             // headers
             writeHeader(rawOut, sliceLabels);
-            writeHeader(stimOut, sliceLabels);
+            if (stimOut != null) writeHeader(stimOut, sliceLabels);
 
             // rows
             final int updateEvery = 1;
@@ -269,18 +319,20 @@ public class Exporter {
 
                 // Line buffers
                 StringBuilder sbRaw = new StringBuilder(64 + 16 * nSlices);
-                StringBuilder sbStim = new StringBuilder(64 + 16 * nSlices);
-
-                appendMeta(sbRaw, name, roi, group, cx, cy, filterName, detectionMethodName);
-                appendMeta(sbStim, name, roi, group, cx, cy, filterName, detectionMethodName);
+                appendMeta(sbRaw, this.exportName, roi, group, cx, cy, filterName, detectionMethodName);
 
                 double[] sig = cell.getSignal();
-                int[] spike = cell.getSpikeTrain();
                 for (int s = 0; s < nSlices; s++) sbRaw.append(',').append(sig[s]);
-                for (int s = 0; s < nSlices; s++) sbStim.append(',').append(spike[s]);
-
                 rawOut.write(sbRaw.append('\n').toString());
-                stimOut.write(sbStim.append('\n').toString());
+
+                if (stimOut != null) {
+                    StringBuilder sbStim = new StringBuilder(64 + 16 * nSlices);
+                    appendMeta(sbStim, this.exportName, roi, group, cx, cy, filterName, detectionMethodName);
+
+                    int[] spike = cell.getSpikeTrain();
+                    for (int s = 0; s < nSlices; s++) sbStim.append(',').append(spike[s]);
+                    stimOut.write(sbStim.append('\n').toString());
+                }
 
                 IJ.showProgress(r, totalCells);
             }
@@ -292,7 +344,9 @@ public class Exporter {
         new Thread(() -> {
             try {
                 ResultsTable.open(rawFile.getAbsolutePath()).show("Signal Results");
-                ResultsTable.open(stimFile.getAbsolutePath()).show("Peak Detection Results");
+                if (stimFile != null) {
+                    ResultsTable.open(stimFile.getAbsolutePath()).show("Peak Detection Results");
+                }
             } catch (IOException e) {
                 IJ.handleException(e);
             }
@@ -340,7 +394,6 @@ public class Exporter {
         return name == null ? "" : name;
     }
 
-
     public void setParameters() {
         Preferences prefs = Preferences.userNodeForPackage(Exporter.class);
         this.nIterations = prefs.getInt(PREF_ITERATIONS, this.nIterations);
@@ -352,9 +405,10 @@ public class Exporter {
         GenericDialog gd = getGenericDialog();
 
         if (gd.wasOKed()) {
+            this.exportName = gd.getNextString();
             this.nIterations = (int) gd.getNextNumber();
-            this.stimulusNamesInput = gd.getNextString();
-            this.stimulusPointsInput = gd.getNextString();
+//            this.stimulusNamesInput = gd.getNextString();
+//            this.stimulusPointsInput = gd.getNextString();
             this.detectionMethod = gd.getNextChoiceIndex();
             this.filter = gd.getNextChoiceIndex();
 
@@ -378,6 +432,23 @@ public class Exporter {
                     prefs.putInt(PREF_LAG, this.lag);
                     prefs.putDouble(PREF_THRESHOLD, this.threshold);
                     prefs.putDouble(PREF_INFLUENCE, this.influence);
+                } else {
+                    return;
+                }
+            }
+
+            if (this.filter == FILTER_GAUSSIAN) {
+                this.sigma = prefs.getDouble(PREF_SIGMA, this.sigma);
+
+                GenericDialog gdFilter = new GenericDialog("Gaussian Filter");
+                gdFilter.addMessage("Input parameters for gaussian filter");
+                gdFilter.addNumericField("Sigma: ", this.sigma);
+                gdFilter.showDialog();
+
+                if (gdFilter.wasOKed()) {
+                    prefs.putDouble(PREF_SIGMA, this.sigma);
+                } else {
+                    return;
                 }
             }
 
@@ -422,21 +493,12 @@ public class Exporter {
     private GenericDialog getGenericDialog() {
         GenericDialog gd = new GenericDialog("Exporter Settings");
         gd.addMessage("All parameters are optional. Leave blank if excluded");
-        gd.addNumericField("Iterations:", this.nIterations);
+        gd.addStringField("Name: ", this.imp.getTitle().trim());
+        gd.addNumericField("Num videos:", this.nIterations);
         gd.addChoice("Response call method", detectionMethods, detectionMethods[Math.max(0, Math.min(this.detectionMethod, detectionMethods.length - 1))]);
         gd.addChoice("Filtering method", filters, filters[Math.max(0, Math.min(this.filter, filters.length - 1))]);
         gd.showDialog();
         return gd;
-    }
-
-    private double getPixelValue(Object pixels, int index) {
-        if (pixels instanceof byte[]) {
-            return ((byte[]) pixels)[index] & 0xff; // keep unsigned
-        } else if (pixels instanceof float[]) {
-            return ((float[]) pixels)[index];
-        } else {
-            throw new IllegalArgumentException("Unsupported pixel type: " + pixels.getClass());
-        }
     }
 
 }

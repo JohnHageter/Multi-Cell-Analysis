@@ -28,6 +28,7 @@ public class MotionCorrection {
     }
 
     public void normXCorr(ImagePlus imp) {
+
         stack = imp.getStack();
         int slices = stack.getSize();
         width = imp.getWidth();

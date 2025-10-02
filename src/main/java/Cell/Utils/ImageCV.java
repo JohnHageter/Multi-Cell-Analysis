@@ -5,6 +5,7 @@ import ij.ImagePlus;
 import ij.process.ImageProcessor;
 
 import org.bytedeco.javacpp.FloatPointer;
+import org.bytedeco.javacpp.Loader;
 import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.javacpp.BytePointer;
 
@@ -12,6 +13,7 @@ import static org.bytedeco.opencv.global.opencv_core.*;
 
 public class ImageCV {
     public static Mat toMat(ImagePlus imp) {
+        Loader.load(org.bytedeco.opencv.opencv_core.Mat.class);
         ImageProcessor ip = imp.getProcessor();
         int width = ip.getWidth();
         int height = ip.getHeight();
@@ -44,6 +46,7 @@ public class ImageCV {
     }
 
     public static Mat toMat(ImageProcessor ip) {
+        Loader.load(org.bytedeco.opencv.opencv_core.Mat.class);
         int width = ip.getWidth();
         int height = ip.getHeight();
 

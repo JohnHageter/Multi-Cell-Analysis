@@ -9,4 +9,11 @@ public class CellDetection {
             IJ.run("StarDist 2D", "");
         }).start();
     }
+
+    public static void runCellpose() {
+        new Thread(() -> {
+            Cellpose c = new Cellpose();
+            c.run();
+        }).start();
+    }
 }
