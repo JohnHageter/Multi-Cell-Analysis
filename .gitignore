@@ -1,6 +1,8 @@
 #manual
 target/*
 resources.zip
+models/*
+plugins/*
 
 # Compiled class file
 *.class
