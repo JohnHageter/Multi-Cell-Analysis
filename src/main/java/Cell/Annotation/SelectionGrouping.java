@@ -6,6 +6,7 @@ import ij.IJ;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.process.FloatPolygon;
+import ij.ImagePlus;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -45,6 +46,16 @@ public class SelectionGrouping {
                 } else if (group.cells.isEmpty()) {
                     IJ.log("Empty groups will not be added to the cell manager.");
                 }
+
+                ImagePlus imp = IJ.getImage();
+                if (imp.getRoi() == groupingRoi) {
+                    imp.setRoi((Roi) null);
+                }
+                if (imp.getOverlay() != null) {
+                    imp.getOverlay().remove(groupingRoi);
+                }
+                imp.updateAndDraw();
+
                 return group;
             case METHOD_POINT:
                 FloatPolygon points = ((PolygonRoi) groupingRoi.clone()).getFloatPolygon();

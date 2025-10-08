@@ -27,19 +27,18 @@ public class SignalFilter {
 
         double[] result = new double[signal.length];
 
-        for (int i = 0; i < signal.length; i++){
+        // Convolution with mirror padding
+        for (int i = 0; i < signal.length; i++) {
             sum = 0.0;
-            for (int j = -halfKernel; j<=halfKernel; j++){
-                int index = i+j;
-                if (index < 0){
-                    index = -index;
+            for (int j = -halfKernel; j <= halfKernel; j++) {
+                int index = i + j;
+                if (index < 0) {
+                    index = -index - 1;
                 } else if (index >= signal.length) {
                     index = 2 * signal.length - index - 1;
                 }
-
-                sum += signal[index] * kernel[j +halfKernel];
+                sum += signal[index] * kernel[j + halfKernel];
             }
-
             result[i] = sum;
         }
         return result;

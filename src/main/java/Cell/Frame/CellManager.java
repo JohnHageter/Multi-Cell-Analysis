@@ -36,16 +36,14 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     private GridBagLayout layout = new GridBagLayout();
     private static JPanel panel = new JPanel();
     private JPopupMenu pm;
-    private Color defaultColor;
     private JCheckBox showAll;
+    private Color defaultColor;
+    private int defaultlwd;
     private static GridBagConstraints gbc = new GridBagConstraints();
     private boolean showingGroups = false;
 
     public ArrayList<CellData> cells = new ArrayList<>();
     public ArrayList<GroupData> groups = new ArrayList<>();
-    private Overlay allCellOverlay;
-    private Overlay allGroupOverlay;
-    private int defaultlwd;
     private boolean allowDuplicates;
     private int prevID;
 
@@ -70,10 +68,6 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         return (CellManager) instance;
     }
 
-    /* ------------------------------
-       Helper overlay & utility methods
-       extracted to reduce duplication
-       ------------------------------ */
     private Overlay buildCellOverlay(List<CellData> cellList, Color stroke) {
         Overlay ol = new Overlay();
         for (CellData cell : cellList) {
@@ -489,8 +483,8 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         } else {
             for (int i = count-1; i>=0; i--){
                 boolean delete = false;
-                for (int j = 0; j <indicies.length; j++) {
-                    if (indicies[j] == i) {
+                for (int indicy : indicies) {
+                    if (indicy == i) {
                         delete = true;
                         break;
                     }
@@ -520,32 +514,27 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     private void updateShowAll() {
         ImagePlus imp = WindowManager.getCurrentImage();
         if (imp == null) return;
+        removeOverlay();
         if (showAll.isSelected()) {
+            Overlay ol;
             if (showingGroups) {
-                Overlay ol = buildGroupOverlay(groups);
-                applyOverlayToImage(imp, ol);
+                ol = buildGroupOverlay(groups);
             } else {
-                Overlay ol = buildCellOverlay(cells, Color.YELLOW);
-                applyOverlayToImage(imp, ol);
+                ol = buildCellOverlay(cells, Color.YELLOW);
             }
-        } else {
-            removeOverlay();
+            applyOverlayToImage(imp, ol);
         }
     }
 
     private void setOverlay(ImagePlus imp, Overlay overlay){
-        if (imp == null) {
-            return;
+        if (imp == null) return;
+
+        if (imp.getWindow() == null) {
+            imp.setOverlay(overlay);
+        } else {
+            imp.setOverlay(overlay);
+            imp.updateAndDraw();
         }
-        ImageCanvas ic = imp.getCanvas();
-        if (ic == null) {
-            if (imp.getOverlay()==null) {
-                imp.setOverlay(overlay);
-            }
-            return;
-        }
-        ic.setShowAllList(overlay);
-        imp.draw();
     }
 
     private void deleteOnEDT(final int i) {
@@ -577,6 +566,11 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         if (gd.wasOKed()) {
             groupName = gd.getNextString();
         } else {
+            return;
+        }
+
+        if (groupName == null || groupName.trim().isEmpty()){
+            popupError("Group name required.");
             return;
         }
 
@@ -629,6 +623,11 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         if (gd.wasOKed()) {
             groupName = gd.getNextString();
         } else {
+            return;
+        }
+
+        if (groupName == null || groupName.trim().isEmpty()){
+            popupError("Group name required.");
             return;
         }
 
@@ -914,64 +913,48 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
     }
 
     private void showCells() {
+        //logOverlay();
         listModel.clear();
         for (CellData cell : cells) listModel.addElement(cell.getName());
         showingGroups = false;
         ImagePlus imp = WindowManager.getCurrentImage();
         if (imp == null) return;
+        removeOverlay();
         Overlay ol = buildCellOverlay(cells, Color.YELLOW);
         applyOverlayToImage(imp, ol);
     }
 
     private void showGroups() {
+        //logOverlay();
         listModel.clear();
-        for (GroupData group : groups) listModel.addElement(group.name);
+        for (GroupData group : groups)
+            listModel.addElement(group.name);
+
         showingGroups = true;
+
         ImagePlus imp = WindowManager.getCurrentImage();
         if (imp == null) return;
-        Overlay ol = buildGroupOverlay(groups);
-        applyOverlayToImage(imp, ol);
-    }
 
-    private void showAllCells() {
-        ImagePlus imp = WindowManager.getCurrentImage();
-        if(imp == null) {
-            return;
-        }
-        Overlay ol = buildCellOverlay(cells, Color.YELLOW);
+        removeOverlay();
+        Overlay ol = buildGroupOverlay(groups);
         applyOverlayToImage(imp, ol);
     }
 
     private void removeOverlay() {
-        ImagePlus imp = WindowManager.getCurrentImage();
-        IJ.log(imp.getTitle());
-        if (imp == null) {
-            return;
+        //logOverlay();
+        ImagePlus imp = IJ.getImage();
+        imp.setOverlay(null);
+        imp.setRoi((Roi) null);
+        if (imp.getCanvas() != null) {
+            imp.getCanvas().setShowAllROIs(false);
         }
-
-        setOverlay(imp,null);
-        IJ.log("Set overlay to null");
         imp.updateAndDraw();
-    }
-
-    private void showAllGroups() {
-        ImagePlus imp = WindowManager.getCurrentImage();
-        if (imp == null) {
-            return;
-        }
-
-        Overlay ol = buildGroupOverlay(groups);
-        applyOverlayToImage(imp, ol);
     }
 
     @Override
     public void itemStateChanged(ItemEvent e) {
         if (e.getSource() == showAll) {
-            if (e.getStateChange() == ItemEvent.SELECTED) {
-                updateShowAll();
-            } else {
-                removeOverlay();
-            }
+            updateShowAll();
         }
     }
 
@@ -1063,6 +1046,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         if (getCount() == 0) return;
         int selectedIndex = list.getSelectedIndex();
         if (selectedIndex < 0) return;
+
         ImagePlus image = WindowManager.getCurrentImage();
         if (image == null) return;
 
@@ -1071,24 +1055,32 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             Roi cellRoi = cd.getCellRoi();
             if (cellRoi != null) {
                 cellRoi.setStrokeColor(Color.YELLOW);
-                image.setRoi(cellRoi);
+                image.setRoi((Roi) cellRoi.clone());
                 image.updateAndDraw();
             }
         } else {
             GroupData gd = groups.get(selectedIndex);
-            Overlay overlay = new Overlay();
+
+            Overlay highlight = new Overlay();
+
             if (gd.getRoi() != null) {
-                gd.getRoi().setStrokeColor(Color.CYAN);
-                overlay.add(gd.getRoi());
+                Roi groupRoi = (Roi) gd.getRoi().clone();
+                groupRoi.setStrokeColor(Color.CYAN);
+                groupRoi.setStrokeWidth(2.0f);
+                highlight.add(groupRoi);
             }
+
             for (CellData cell : gd.getCellsInGroup()) {
                 Roi r = cell.getCellRoi();
                 if (r != null) {
-                    r.setStrokeColor(Utils.randomColor());
-                    overlay.add(r);
+                    Roi rClone = (Roi) r.clone();
+                    rClone.setStrokeColor(Utils.randomColor());
+                    rClone.setStrokeWidth(1.5f);
+                    highlight.add(rClone);
                 }
             }
-            image.setOverlay(overlay);
+
+            image.setOverlay(highlight);
             image.updateAndDraw();
         }
     }
@@ -1101,4 +1093,12 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
             instance = null;
         }
     }
+
+//    private void logOverlay() {
+//        ImagePlus imp = IJ.getImage();
+//        IJ.log("Has overlay: " + (imp.getOverlay() != null));
+//        IJ.log("Has active ROI: " + (imp.getRoi() != null));
+//        if (imp.getOverlay() != null)
+//            IJ.log("Overlay size: " + imp.getOverlay().size());
+//    }
 }

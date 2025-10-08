@@ -3,106 +3,108 @@ package Cell.Processing;
 import Cell.Frame.CellManager;
 import ij.IJ;
 import ij.ImagePlus;
-import ij.gui.GenericDialog;
 import ij.Prefs;
+import ij.WindowManager;
+import ij.gui.GenericDialog;
 import ij.gui.Roi;
 import ij.io.RoiDecoder;
 
 import javax.swing.*;
 import java.io.*;
+import java.net.URL;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public class Cellpose {
-    String cellposeEnv;
-    String cellposeModelDir;
-    String model;
-    String customModelPath;
-    String args;
-    int timeout;
-    File pythonExe;
-    HashMap<String, File> modelPaths = new HashMap<>();
+    private String cellposeEnv;
+    private String cellposeModelDir;
+    private String model;
+    private String customModelPath;
+    private String args;
+    private int timeout;
+    private Map<String, File> modelPaths = new HashMap<>();
+    private String micromamba;
 
     public void run() {
-        if (!cellposeEnvExists()) {
-            boolean install = IJ.showMessageWithCancel(
-                    "Cellpose not found",
-                    "The Cellpose environment is not installed.\n\n" +
-                            "Would you like to install it now?"
-            );
-            if (!install) {
-                IJ.showStatus("Cellpose installation cancelled.");
-                return;
+        ImagePlus imp = WindowManager.getCurrentImage();
+        if (imp == null) { IJ.noImage(); return; }
+        if (imp.getNSlices() > 1) { IJ.error("Image stacks not supported."); return; }
+
+        try {
+            boolean envExists = cellposeEnvExists();
+            if (!envExists) {
+                boolean install = IJ.showMessageWithCancel(
+                        "Cellpose not found",
+                        "Cellpose environment is not installed.\nWould you like to install it now?"
+                );
+
+                if (install) {
+                    installCellpose();
+                } else {
+                    IJ.showStatus("Skipping installation. Please enter the path to your Cellpose Environment.");
+                }
             }
 
-            try {
-                installCellpose();
-            } catch (Exception e) {
-                IJ.error("Failed to install Cellpose:\n" + e.getMessage());
-                return;
-            }
-        }
+            // Try to locate Python executable
+            String cellposePath = cellposeEnv != null && !cellposeEnv.isEmpty()
+                    ? cellposeEnv
+                    : getCellposePath();
 
-        ImagePlus imp = IJ.getImage();
-        if (imp == null) {
-            IJ.noImage();
-            return;
-        } else if (imp.getNSlices() > 1) {
-            IJ.error("Image stacks not supported in MCA.");
-            return;
-        }
-
-        String cellpose = getCellposePath();
-        String osName = System.getProperty("os.name").toLowerCase();
-        IJ.log("OS: " + osName);
-        if (osName.contains("win")) {
-            this.pythonExe = new File(cellpose, "python.exe");
-        } else {
-            this.pythonExe = new File(cellpose, "bin/python");
-        }
-
-        try{
-            File input = File.createTempFile("tmp_cellpose_in", ".tif");
+            File input = File.createTempFile(imp.getTitle(), ".tif");
             IJ.saveAsTiff(imp, input.getAbsolutePath());
 
             if (getDialog()) {
+                if(!new File(this.cellposeEnv).exists()) {
+                    IJ.error("Cellpose environment doesn't exist.\nCheck that the path is correct.");
+                    return;
+                }
                 checkModel();
-                callCellpose(input);
-
-                //output file is always based on input name. appended with "_rois.zip"
+                runCellpose(input);
                 importMaskAsCellData(input);
-            } else {
-                return;
-            };
+            }
+
         } catch (Exception e) {
             IJ.error("Cellpose failed: " + e.getMessage());
         }
     }
 
+    private boolean cellposeEnvExists() {
+        String home = System.getProperty("user.home");
+        String osName = System.getProperty("os.name").toLowerCase();
+        File env;
+        if (osName.contains("win")) {
+            env = new File(home, "AppData/Roaming/mamba/envs/cellpose");
+        } else {
+            env = new File(home, ".mamba/envs/cellpose");
+        }
+
+        this.cellposeEnv = String.valueOf(env);
+
+        return env.exists();
+    }
+
     private void checkModel() throws IOException, InterruptedException {
-        String home = IJ.getDirectory("home");
-        this.cellposeModelDir = home + ".cellpose/models";
-
-        File modelDir = this.model.equals("Custom") ? new File(customModelPath)
+        this.cellposeModelDir = IJ.getDirectory("home") + ".cellpose/models";
+        File modelDir = "Custom".equals(this.model) ? new File(customModelPath)
                 : new File(this.cellposeModelDir, this.model);
-
-        IJ.log(modelDir.getAbsolutePath());
 
         if (!modelDir.exists()) {
             IJ.log("Model not found in ~/.cellpose. Adding it...");
-            File modelSource = this.model.equals("Custom") ? new File(customModelPath)
+            File source = "Custom".equals(this.model) ? new File(customModelPath)
                     : new File(IJ.getDirectory("imagej") + "models/CellManager-CellposeModels/" + this.model);
-
-            addCellposeModel(modelSource);
+            addModel(source);
         } else {
             IJ.log("Model found: " + modelDir.getAbsolutePath());
         }
     }
 
     private boolean getDialog() {
-        this.cellposeEnv = Prefs.get("cellpose.env", this.cellposeEnv);
+        if(this.cellposeEnv.isEmpty()) {
+            this.cellposeEnv = Prefs.get("cellpose.env", this.cellposeEnv);
+        }
+
         this.model = Prefs.get("cellpose.model", "H2B-GCaMP");
         this.customModelPath = Prefs.get("cellpose.customModelPath", "");
         this.args = Prefs.get("cellpose.args", "");
@@ -110,17 +112,15 @@ public class Cellpose {
 
         String ijRoot = IJ.getDirectory("imagej");
         this.modelPaths.put("H2BGCaMP", new File(ijRoot, "models/CellManager-CellposeModels/H2BGCAMP"));
-        this.modelPaths.put("cyto3",    new File(ijRoot, "models/CellManager-CellposeModels/cyto3"));
-        this.modelPaths.put("Custom",   this.customModelPath != null ? new File(this.customModelPath) : null);
-
+        this.modelPaths.put("cyto3", new File(ijRoot, "models/CellManager-CellposeModels/cyto3"));
+        this.modelPaths.put("Custom", customModelPath != null ? new File(customModelPath) : null);
 
         GenericDialog gd = new GenericDialog("Cellpose");
-        gd.addFileField("Cellpose envrionment", this.cellposeEnv);
-        String[] models = {"H2BGCaMP", "cyto3", "cpsam", "Custom"};
-        gd.addChoice("Model", models, this.model);
+        gd.addFileField("Cellpose environment", this.cellposeEnv);
+        gd.addChoice("Model", new String[]{"H2BGCaMP", "cyto3", "cpsam", "Custom"}, this.model);
         gd.addFileField("Custom model path (if selected)", this.customModelPath, 50);
         gd.addStringField("Additional arguments", this.args, 50);
-        gd.addNumericField("Timeout (minutes, 0=infinite)", this.timeout,0);
+        gd.addNumericField("Timeout (minutes, 0=infinite)", this.timeout, 0);
         gd.showDialog();
         if (gd.wasCanceled()) return false;
 
@@ -141,35 +141,24 @@ public class Cellpose {
 
     private void importMaskAsCellData(File input) throws IOException {
         File zipOutput = new File(input.getCanonicalPath().replaceFirst("\\.tif$", "") + "_rois.zip");
-
         if (!zipOutput.exists()) {
             IJ.error("No ROI output found.");
             return;
         }
 
-        IJ.log(zipOutput.getCanonicalPath());
         CellManager cm = CellManager.getInstance();
         if (cm == null) cm = new CellManager();
 
+        File tmpDir = Files.createTempDirectory("cellpose_rois_").toFile();
         List<Roi> rois = new ArrayList<>();
-        File tmpDir;
-
-        try {
-            tmpDir = Files.createTempDirectory("cellpose_rois_").toFile();
-        } catch (IOException e) {
-            IJ.error("Failed to create temp dir for ROIs: " + e.getMessage());
-            return;
-        }
 
         try (ZipFile zf = new ZipFile(zipOutput)) {
             Enumeration<? extends ZipEntry> entries = zf.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
-                String name = entry.getName();
-                if (!name.toLowerCase().endsWith(".roi")) continue;
+                if (!entry.getName().toLowerCase().endsWith(".roi")) continue;
 
-                // Extract entry to temp .roi file
-                File out = new File(tmpDir, new File(name).getName());
+                File out = new File(tmpDir, new File(entry.getName()).getName());
                 try (InputStream is = zf.getInputStream(entry);
                      OutputStream os = Files.newOutputStream(out.toPath())) {
                     byte[] buf = new byte[4096];
@@ -177,22 +166,14 @@ public class Cellpose {
                     while ((r = is.read(buf)) != -1) os.write(buf, 0, r);
                 }
 
-
                 try {
                     RoiDecoder rd = new RoiDecoder(out.getAbsolutePath());
                     Roi roi = rd.getRoi();
-                    if (roi != null) {
-                        rois.add(roi);
-                    } else {
-                        IJ.log("RoiDecoder returned null for: " + out.getAbsolutePath());
-                    }
+                    if (roi != null) rois.add(roi);
                 } catch (Exception e) {
                     IJ.log("Failed to decode ROI " + out.getAbsolutePath() + ": " + e.getMessage());
                 }
             }
-        } catch (IOException e) {
-            IJ.error("Failed to read ROI zip: " + e.getMessage());
-            return;
         }
 
         CellManager finalCm = cm;
@@ -200,7 +181,6 @@ public class Cellpose {
             for (Roi r : rois) {
                 try {
                     finalCm.addCell(r);
-                    IJ.log("Added " + (r.getName() != null ? r.getName() : "unnamed ROI") + " to the Cell Manager.");
                 } catch (Exception ex) {
                     IJ.log("addCell failed for ROI: " + ex.getMessage());
                 }
@@ -208,25 +188,26 @@ public class Cellpose {
         });
     }
 
-    private void callCellpose(File input) throws Exception {
+    private void runCellpose(File input) throws Exception {
+        String python = getPython(cellposeEnv);
+        if (python == null) {
+            IJ.error("Python executable not found in Cellpose environment: " + cellposeEnv);
+            return;
+        }
+
         List<String> command = new ArrayList<>();
-        command.add(this.pythonExe.getAbsolutePath());
+        command.add(python);
         command.add("-m");
-        command.add("cellpose"); // entrypoint script
+        command.add("cellpose");
         command.add("--image_path");
         command.add(input.getCanonicalPath());
         command.add("--pretrained_model");
-        if (this.model.equals("Custom") && !this.customModelPath.isEmpty()) {
-            command.add(this.customModelPath);
-        } else {
-            command.add(this.model);
-        }
-
+        command.add("Custom".equals(this.model) && !this.customModelPath.isEmpty() ? this.customModelPath : this.model);
         command.add("--save_rois");
         command.add("--verbose");
 
         if (!this.args.isEmpty()) {
-            command.addAll(Arrays.asList(this.args.split(" ")));
+            Collections.addAll(command, this.args.split(" "));
         }
 
         ProcessBuilder pb = new ProcessBuilder(command);
@@ -234,63 +215,163 @@ public class Cellpose {
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
-            while ((line = reader.readLine()) != null) {
-                IJ.log("[cellpose] " + line);
-//                    if (Thread.currentThread().isInterrupted()) {
-//                        process.destroyForcibly(); // kill python if fiji is closed
-//                        break;
-//                    }
-            }
-        } catch (IOException e) {
-            IJ.log("Error reading Cellpose output: " + e.getMessage());
+            while ((line = reader.readLine()) != null) IJ.log("[cellpose] " + line);
         }
 
-        int exit = (timeout > 0)
-                ? process.waitFor(timeout * 60L, java.util.concurrent.TimeUnit.SECONDS) ? process.exitValue() : -1
-                : process.waitFor();
+        int exit = timeout > 0 ?
+                (process.waitFor(timeout * 60L, java.util.concurrent.TimeUnit.SECONDS) ? process.exitValue() : -1) :
+                process.waitFor();
 
-        if (exit != 0) {
-            throw new IOException("Cellpose exited with code " + exit);
+        if (exit != 0) throw new IOException("Cellpose exited with code " + exit);
+    }
+
+    private String getCellposePath() {
+        return System.getProperty("os.name").toLowerCase().contains("win") ?
+                new File(System.getenv("APPDATA"), "mamba/envs/cellpose").getAbsolutePath() :
+                new File(System.getProperty("user.home"), ".local/share/mamba/envs/cellpose").getAbsolutePath();
+    }
+
+    private String getPython(String envDirPath) {
+        if (envDirPath == null || envDirPath.isEmpty()) {
+            return null;
+        }
+
+        File envDir = new File(envDirPath);
+        if (!envDir.exists()) {
+            return null;
+        }
+
+        String osName = System.getProperty("os.name").toLowerCase();
+        File pythonExe;
+
+        if (osName.contains("win")) {
+            pythonExe = new File(envDir, "python.exe");
+        } else {
+            pythonExe = new File(envDir, "bin/python");
+        }
+
+        if (pythonExe.exists() && pythonExe.canExecute()) {
+            return pythonExe.getAbsolutePath();
+        } else {
+            IJ.log("Python executable not found in environment: " + envDirPath);
+            return null;
         }
     }
 
-    private static String getCellposePath() {
-        String osName = System.getProperty("os.name").toLowerCase();
-        if (osName.contains("win")) {
-            return new File(System.getenv("APPDATA"), "mamba/envs/cellpose").getAbsolutePath();
-        } else {
-            return new File(System.getProperty("user.home"), ".local/share/mamba/envs/cellpose").getAbsolutePath();
-        }
-    }
+    public void addModel(File modelDir) throws IOException, InterruptedException {
+        File cellposeDir = new File(System.getProperty("user.home"), ".cellpose/models");
+        if (!cellposeDir.exists()) cellposeDir.mkdirs();
 
-    private void installCellpose() throws IOException, InterruptedException {
-        String ijDir = IJ.getDirectory("imagej");
-        IJ.log(ijDir);
-        String osName = System.getProperty("os.name").toLowerCase();
-        String micromambaBinary;
-
-        if (osName.contains("win")) {
-            micromambaBinary = new File(ijDir, "plugins/MCA/micromamba-win-64.exe").getAbsolutePath();
-        } else if (osName.contains("mac")) {
-            micromambaBinary = new File(ijDir, "plugins/MCA/micromamba-osx-64").getAbsolutePath();
-        } else if (osName.contains("nux")) {
-            micromambaBinary = new File(ijDir, "plugins/MCA/micromamba-linux-64").getAbsolutePath();
-        } else {
-            throw new RuntimeException("Unsupported OS: " + osName);
-        }
-
-        File home = new File(System.getProperty("user.home"));
-        File envDir = new File(home, ".micromamba/envs/cellpose");
-
-        if (envDir.exists()) {
-            IJ.log("Cellpose environment already exists at: " + envDir.getAbsolutePath());
+        String python = getPython(cellposeEnv);
+        if (python == null) {
+            IJ.error("Python executable not found in Cellpose environment: " + cellposeEnv);
             return;
         }
 
-        IJ.log("Creating Cellpose environment using micromamba...");
+        List<String> command = new ArrayList<>();
+        command.add(python);
+        command.add("-m");
+        command.add("cellpose");
+        command.add("--add_model");
+        command.add(modelDir.getAbsolutePath());
 
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) IJ.log("[cellpose] " + line);
+        }
+
+        int exitCode = proc.waitFor();
+        if (exitCode != 0) throw new RuntimeException("Failed to add model (exit code " + exitCode + ")");
+    }
+
+    private void installMicromamba() throws IOException, InterruptedException {
+        String os = System.getProperty("os.name").toLowerCase();
+        File pluginDir = new File(IJ.getDirectory("imagej"), "plugins/MCA");
+        if (!pluginDir.exists()) pluginDir.mkdirs();
+
+        IJ.log("Installing Micromamba...");
+
+        String binaryName;
+        String downloadURL;
+
+        if (os.contains("win")) {
+            binaryName = "micromamba.exe";
+            downloadURL = "https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-win-64.exe";
+        } else if (os.contains("mac")) {
+            binaryName = "micromamba";
+            downloadURL = "https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-osx-64";
+        } else if (os.contains("nux")) {
+            binaryName = "micromamba";
+            downloadURL = "https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64";
+        } else {
+            throw new RuntimeException("Unsupported OS: " + os);
+        }
+
+        File micromambaFile = new File(pluginDir, binaryName);
+
+        if (micromambaFile.exists()) {
+            IJ.log("Micromamba already present at: " + micromambaFile.getAbsolutePath());
+            return;
+        }
+
+        IJ.log("Downloading Micromamba from " + downloadURL);
+
+        // Use Java download instead of shell commands
+        try (InputStream in = new java.net.URL(downloadURL).openStream()) {
+            Files.copy(in, micromambaFile.toPath());
+        }
+
+        if (!os.contains("win")) {
+            micromambaFile.setExecutable(true);
+        }
+
+        IJ.log("Micromamba downloaded to: " + micromambaFile.getAbsolutePath());
+
+        ProcessBuilder pb = new ProcessBuilder(micromambaFile.getAbsolutePath(), "--version");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                IJ.log("[micromamba] " + line);
+            }
+        }
+
+        int exit = proc.waitFor();
+        if (exit != 0) {
+            throw new RuntimeException("Micromamba test run failed (exit code " + exit + ")");
+        }
+
+        IJ.log("Micromamba installation completed successfully.");
+    }
+
+    private void installCellpose() throws IOException, InterruptedException {
+        File envDir = new File("");
+        if (IJ.isLinux() || IJ.isMacintosh()) {
+            envDir = new File(System.getProperty("user.home"), ".local/share/mamba/envs/cellpose");
+        } else if (IJ.isWindows()) {
+            envDir = new File(System.getProperty("user.home"), "AppData/Roaming/mamba/envs/cellpose");
+        }
+
+
+        if (cellposeEnvExists()) return;
+
+        IJ.log("Checking for micromamba...");
+        String micromamba = findMicromamba();
+        if (micromamba == null) {
+            installMicromamba();
+            micromamba = findMicromamba();
+            if (micromamba == null) throw new RuntimeException("Micromamba not found after installation");
+        }
+
+        IJ.log("Creating Cellpose environment...");
         List<String> cmd = new ArrayList<>();
-        cmd.add(micromambaBinary);
+        cmd.add(micromamba);
         cmd.add("create");
         cmd.add("-y");
         cmd.add("-n");
@@ -304,62 +385,33 @@ public class Cellpose {
         pb.redirectErrorStream(true);
         Process proc = pb.start();
 
-        new Thread(() -> {
-            try (BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(proc.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    IJ.log("[micromamba] " + line);
-                }
-            } catch (IOException e) {
-                IJ.log("Error reading micromamba output: " + e.getMessage());
-            }
-        }).start();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+        String line;
+        while ((line = reader.readLine()) != null) IJ.log("[micromamba] " + line);
 
-        int exitCode = proc.waitFor();
-        if (exitCode != 0) {
-            throw new RuntimeException("Micromamba failed with exit code " + exitCode);
-        }
+        if (proc.waitFor() != 0) throw new RuntimeException("Micromamba environment creation failed");
 
-        File cellposeDir = new File(System.getProperty("user.home"), ".cellpose/models");
-        if (!cellposeDir.exists()) {
-            cellposeDir.mkdirs();
-        }
-
-        IJ.log("Cellpose environment successfully installed at: " + envDir.getAbsolutePath());
+        new File(System.getProperty("user.home"), ".cellpose/models").mkdirs();
+        IJ.log("Cellpose environment installed at: " + envDir.getAbsolutePath());
     }
 
-    private static boolean cellposeEnvExists() {
-        return new File(getCellposePath()).exists();
+    private String findMicromamba() {
+        try {
+            String os = System.getProperty("os.name").toLowerCase();
+            String cmd = os.contains("win") ? "where" : "which";
+            ProcessBuilder pb = new ProcessBuilder(cmd, "micromamba");
+            pb.redirectErrorStream(true);
+            Process proc = pb.start();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+            String path = reader.readLine();
+            if (proc.waitFor() == 0 && path != null && !path.isEmpty()) return path.trim();
+
+            // Fallback to plugins folder
+            File pluginDir = new File(IJ.getDirectory("imagej"), "plugins/MCA");
+            File[] files = pluginDir.listFiles();
+            if (files != null) for (File f : files)
+                if (f.getName().startsWith("micromamba") && f.canExecute()) return f.getAbsolutePath();
+        } catch (Exception ignored) {}
+        return null;
     }
-
-    public void addCellposeModel(File modelDir) throws IOException, InterruptedException {
-        File cellposeDir = new File(System.getProperty("user.home"), ".cellpose/models");
-        if (!cellposeDir.exists()) {
-            cellposeDir.mkdirs();
-        }
-
-        List<String> command = new ArrayList<>();
-        command.add(pythonExe.getAbsolutePath());
-        command.add("-m");
-        command.add("cellpose");
-        command.add("--add_model");
-        command.add(modelDir.getAbsolutePath());
-
-        ProcessBuilder pb = new ProcessBuilder(command);
-        pb.redirectErrorStream(true);
-        Process proc = pb.start();
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                IJ.log("[cellpose] " + line);
-            }
-        }
-
-        int exitCode = proc.waitFor();
-        if (exitCode != 0) {
-            throw new RuntimeException("Failed to add model to Cellpose (exit code " + exitCode + ")");
-        }
-    }
-
 }
