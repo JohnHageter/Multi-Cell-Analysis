@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/846814008.svg)](https://doi.org/10.5281/zenodo.17610801)
+
 # Multi-Cell-Analysis ImageJ/Fiji Plugin <img src="./Logo.png" width="200" title="MCA" alt="Multi-Cell-Analysis" align="right" vspace = "50">
 <p>MCA is a functional imaging analysis toolkit for ImageJ. The plugin is intended for use with confocal or multiphoton calcium imaging datasets.</p>
 
