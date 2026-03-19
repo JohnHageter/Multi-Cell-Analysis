@@ -3,6 +3,7 @@ target/*
 resources.zip
 models/*
 plugins/*
+.vscode/
 
 # Compiled class file
 *.class

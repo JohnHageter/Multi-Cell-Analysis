@@ -199,6 +199,7 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
         addMenuItem("Set standard name");
         addMenuItem("Cellpose ...");
         addMenuItem("StarDist2D ...");
+        addMenuItem("convert stack (8-bit)");
         //addMenuItem("Test");
     }
 
@@ -297,6 +298,9 @@ public class CellManager extends JFrame implements ActionListener, ItemListener,
                 }
                 break;
             case "Test":
+                break;
+            case "convert stack (8-bit)":
+                CalciumProcessor.stackConvert8Bit(IJ.getImage());
                 break;
             default:
                 throw new IllegalStateException("Unexpected value: " + label);
