@@ -19,7 +19,7 @@ For more information, please refer to our publication [^1]
 The MCA Plugin can currently be installed through the ImageJ update site with the following steps:  
 1. Run ImageJ Update. `Help >> Update...`
 2. In the ImageJ updater select "Add Unlisted Site" and add `https://sites.imagej.net/MultiCellPlugins`  
-   *Note: for access to StarDist2d you should enable the `Stardist`, `CSBDeep`, and `Tensorflow` update sites*
+   *Note: for access to StarDist2d you should enable the* `Stardist`, `CSBDeep`, *and* `Tensorflow` *update sites enabled.*
 3. Continue with update and restart ImageJ
 
 MCA requires a few dependencies which may conflict with other update sites. After you enable the update site during the ImageJ update, please ensure these dependencies are downloaded along with it.
@@ -71,6 +71,14 @@ This function syncs ROIs between the ROI manager and Cell Manager
 This function runs the Cellpose ROI detection method. Upon first usage, you will be promped to install a distribution of micomamba which will install Cellpose on your system. If you wish to use your own version of Cellpose, you will either not be prompted to install micromamba if MCA can find Cellpose on your system. If MCA cannot find Cellpose on your system, click "No" when prompted to install cellpose and then point the "Cellpose env" setting to the Cellpose environment that you have installed.
 
 MCA is bundled with 3 pre-trained cell detection models for Cellpose. They are listed in the "Model" section of the cellpose prompt. If you wish to use your own, select "custom" from the drop down menu and enter the path to your custom model.
+
+##### StarDist2D
+
+This function runs the StarDist2D cell detection plugin for ImageJ. It requires that you have `StarDist`, `CSBDeep`, and `Tensorflow` update sites enabled. The function available in MCA is a QOL function which can also be ran through `Plugins>Stardist` in ImageJ. For more information about using this plugin, please visit the [StarDist ImageJ](https://imagej.net/plugins/stardist) documentation page.
+
+##### Convert Stack (8-bit)
+
+This function uses the full range of raw pixel values to convert time-seires image stack from 16 or 32 bit to 8-bit. Compared to the native ImageJ `Image>Type>8-bit`, this function does not convert based on the currently displayed pixel values.
 
 ##### Cells / Groups
 These buttons switch between the cells and groups that you have within the Cell Manager.

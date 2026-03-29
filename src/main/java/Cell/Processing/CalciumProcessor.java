@@ -81,66 +81,6 @@ public class CalciumProcessor {
     }
 
 
-    /*
-FUNCTION stackConvert8Bit(image):
-    SAVE calibration from image
-    REMOVE calibration from image
-    
-    stack = image.getStack()
-    width = stack.width
-    height = stack.height
-    size = number of slices in stack
-    
-    globalMin = +infinity
-    globalMax = -infinity
-    
-    // Find minimum and maximum pixel value across every slice in the stack.
-    FOR each slice i from 1 to size:
-        processor = duplicate of stack.getProcessor(i)
-    
-        FOR each pixel (x, y) in processor:
-            value = processor.getPixelValue(x, y)
-    
-            IF value < globalMin:
-                globalMin ← value
-            IF value > globalMax:
-                globalMax ← value
-    
-    newStack ← empty stack with same width and height
-    
-    // Use the global min and max to scale 16-bit values to 8-bit
-    FOR each slice i from 1 to size:
-        processor = duplicate of stack.getProcessor(i)
-    
-        CREATE byte array dst of size (width * height)
-        index = 0
-    
-        FOR each pixel (x, y) in processor:
-            value = processor.getPixelValue(x, y)
-    
-            // scale value to 0–255
-            scaled = (value - globalMin) * 255 / range
-    
-            // safety: if by chance a pixel in the raw image is NaN or infinity
-            // make sure it's clamped to the 8-bit range
-            IF scaled < 0:
-                scaled = 0
-            IF scaled > 255:
-                scaled = 255
-    
-            //put the scaled pixel in the new stack
-            dst[index] = round(scaled)
-            index = index + 1
-    
-        ADD dst as new slice to newStack
-    
-    // replace the 16-bit stack with the new 8-bit stack
-    image.setStack(newStack)
-    
-    RESTORE original calibration to image
-    UPDATE display
-    */
-
     public static void stackConvert8Bit(ImagePlus imp) {
         if (imp == null) {
             IJ.noImage();
