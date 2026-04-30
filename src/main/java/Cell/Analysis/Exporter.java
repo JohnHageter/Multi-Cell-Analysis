@@ -80,7 +80,7 @@ public class Exporter {
 
         if (this.cells == null || this.cells.isEmpty()) return;
 
-        new Thread(this::generateAverageStack, "AVG-Iterations").start();
+        generateAverageStack();
 
         if (this.filter == FILTER_GAUSSIAN) {
             filterSignal();
