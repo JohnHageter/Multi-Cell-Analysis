@@ -56,7 +56,7 @@ public class CalciumProcessor {
         int height = stack.getHeight();
 
         float[] sumPixels = new float[width * height];
-        double baselineDuration = baselineEnd - baselineBegin;
+        double baselineDuration = (baselineEnd - baselineBegin) + 1;
 
         for (int z = baselineBegin; z <= baselineEnd; z++) {
             ImageProcessor ip = stack.getProcessor(z);
